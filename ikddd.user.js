@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         irankhodrodisel
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-12.16
-// @description  Redesigned the found product card to be more compact, modern, and visually appealing.
+// @version      2025-06-12.17 // نسخه را برای نشان دادن تغییر به‌روز کردم
+// @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha.
 // @author       Masoud
 // @match        https://esale.ikd.ir/*
 // @icon         https://esale.ikd.ir/logo.png
@@ -19,6 +19,7 @@
     // =====================================================================================
     // --- ⚙️ CONFIGURATION & CONSTANTS ---
     // =====================================================================================
+
     const CONFIG = {
         localStorageTokenKey: 'SaleInternet',
         smsTimestampKey: 'ikdBotSmsTimestamp',
@@ -27,8 +28,10 @@
         remoteSolverUrl1: 'https://ikd.sipa-solver.shop/solve_captcha',
         remoteSolverUrl2: 'https://oikd.sipa-solver.shop/solve',
         defaultMobileNumber: '09000000000', // This is now a fallback
+
         smsCooldownMinutes: 5,
         apiRetryDelayMs: 4000, // این مقدارها اکنون با autoSolverConfig/manualInputConfig جایگزین می‌شوند
+
         searchPollingIntervalMs: 2500,
         smsRelayPollingIntervalMs: 1500,
         failedSubmitDelayMs: 5000, // این مقدارها اکنون با autoSolverConfig/manualInputConfig جایگزین می‌شوند
@@ -38,11 +41,12 @@
         popupSearchPlaceholder: 'نام دقیق محصول مورد نظر',
         startContinuousSearchText: 'شروع جستجوی مستمر',
         stopContinuousSearchText: 'توقف جستجو',
+
         manualSmsButtonText: 'کد SMS دستی',
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
-        botVersion: 'v3.9.0', // نسخه به‌روزرسانی شده
+        botVersion: 'v4.0.1', // نسخه به‌روزرسانی شده
 
         // NEW: مجموعه تنظیمات برای حالت حل خودکار (Auto Solver)
         autoSolverConfig: {
@@ -70,7 +74,6 @@
             // در حالت دستی solverOrder و maxCaptchaSolveRetries معنی ندارند
         }
     };
-
     const API_ENDPOINTS_IKD = {
         getSaleProjects: `${CONFIG.apiBaseUrl}/sales/getSaleProjects`,
         getCaptchaOrder: `${CONFIG.apiBaseUrl}/esales/getCaptchaOrder`,
@@ -78,7 +81,6 @@
         sendSmsOrder: `${CONFIG.apiBaseUrl}/users/sendSmsOrder`,
         addSefaresh: `${CONFIG.apiBaseUrl}/esales/addSefaresh`,
     };
-
     // =====================================================================================
     // --- 🖼️ GLOBAL STATE & UI ELEMENTS ---
     // =====================================================================================
@@ -106,7 +108,6 @@
         'User-Agent': navigator.userAgent,
         'Priority': 'u=0',
     });
-
     // NEW: تابع کمکی برای دریافت تنظیمات فعال بر اساس حالت حل‌کننده
     function getActiveConfig() {
         if (selectedSolver === 'solver-none') {
@@ -282,14 +283,13 @@
             return { success: false, error: "فایل کپچا برای حل موجود نیست." };
         }
 
-        const activeConfig = getActiveConfig(); // تنظیمات فعال
+        const activeConfig = getActiveConfig();
+        // تنظیمات فعال
         const solversToTry = [];
-
         const definedSolvers = {
             'solver-1': { name: 'سرور ۱ (عمومی)', url: CONFIG.remoteSolverUrl1 },
             'solver-2': { name: 'سرور ۲ (شخصی)', url: CONFIG.remoteSolverUrl2 }
         };
-
         // NEW: استفاده از solverOrder تعریف شده در activeConfig (برای autoSolverConfig)
         if (activeConfig.solverOrder && Array.isArray(activeConfig.solverOrder)) {
             for (const solverKey of activeConfig.solverOrder) {
@@ -441,8 +441,7 @@
                             <label><input type="radio" name="captcha-solver-option" value="solver-1"> عددی</label>
                             <label><input type="radio" name="captcha-solver-option" value="solver-2"> متنی</label>
                         </div>
-                    </div>
-                </section>
+                    </section>
                 <section class="popup-section initial-search-section">
                     <h3 class="section-title">۱. جستجوی خودرو</h3>
                     <div class="search-input-group">
@@ -606,6 +605,13 @@
         uiElements.initialSearchSection.style.display = 'none';
         uiElements.searchResultsSection.style.display = 'block';
         uiElements.captchaSmsContainer.style.display = 'flex';
+
+        // NEW: Scroll to captcha container
+        setTimeout(() => {
+            if (uiElements.captchaSmsContainer) {
+                uiElements.captchaSmsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100); // تأخیر کوتاه برای اطمینان از رندر شدن عناصر
     }
 
     function displayCaptcha(captchaData) {
@@ -674,7 +680,6 @@
 
         // NEW LOGIC: همیشه پولینگ از سرور رله را شروع می‌کنیم، بدون توجه به نتیجه درخواست IKD
         startSmsRelayPolling();
-
         const smsResponse = await requestSmsFromIKD();
 
         if (!smsResponse.success) {
@@ -683,7 +688,8 @@
                 displayMessage('محدودیت زمانی SMS فعال است. ربات همچنان کد را از سرور واسط می‌خواند.', 'warn');
                 startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
             }
-            return true; // همیشه True برمی‌گرداند تا فرآیند اصلی ادامه یابد
+            return true;
+            // همیشه True برمی‌گرداند تا فرآیند اصلی ادامه یابد
         } else {
             displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
             if(isManualRequest) startManualSmsCooldownTimer();
@@ -704,7 +710,6 @@
             if (uiElements.captchaInput) uiElements.captchaInput.value = '';
             if (uiElements.smsInput) uiElements.smsInput.value = '';
             checkAndEnableSubmitButton();
-
             // NEW: استفاده از تأخیرهای مربوط به activeConfig
             await sleep(getRandomDelay(activeConfig.minApiDelayMs, activeConfig.maxApiDelayMs));
             displayMessage('در حال دریافت اطلاعات سفارش و کپچا...', 'info');
@@ -713,7 +718,6 @@
                 getOrderDetailsFromIKD(currentOrderData.selectedProject),
                 getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg)
             ]);
-
             if (!orderDetailsResult.success) {
                 displayMessage(`خطا در دریافت اطلاعات سفارش: ${orderDetailsResult.error}. تلاش مجدد...`, 'error');
                 // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
@@ -729,11 +733,10 @@
                  displayMessage(`خطا در دریافت کپچا: ${captchaApiResult.error}. تلاش مجدد...`, 'error');
                  // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
                  setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
-                 return;
+                return;
             }
             displayCaptcha(captchaApiResult.data);
             currentOrderData.captchaToken = captchaApiResult.data.token;
-
             if (selectedSolver === 'solver-none') {
                 displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
                 currentOrderData.captchaAutoFilled = false;
@@ -750,7 +753,8 @@
                         currentOrderData.captchaAutoFilled = true;
                         uiElements.captchaInput.value = solveResponse.answer;
                         captchaSolvedByAutoSolver = true;
-                        break; // اگر حل شد، از حلقه خارج می‌شویم
+                        break;
+                        // اگر حل شد، از حلقه خارج می‌شویم
                     } else {
                         displayMessage(`تلاش ${i + 1} برای حل خودکار کپچا ناموفق بود: ${solveResponse.error}.`, 'warn');
                         // NEW: تأخیر بین تلاش‌های حل کپچا
@@ -780,11 +784,10 @@
                  displayMessage('کپچا پر نشد/حل نشد. فرآیند مجدداً آغاز می‌شود.', 'warn');
                  // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
                  setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
-                 return;
+                return;
             }
 
             checkAndEnableSubmitButton();
-
             // NEW: درخواست و مدیریت SMS (حتی اگر درخواست به IKD ناموفق باشد، پولینگ شروع می‌شود)
             await requestAndHandleSms(false);
         } catch (e) {
@@ -849,9 +852,11 @@
     }
 
     function stopContinuousProductSearch() {
-        if(productSearchPollingTimeoutId) { clearTimeout(productSearchPollingTimeoutId); productSearchPollingTimeoutId = null; }
+        if(productSearchPollingTimeoutId) { clearTimeout(productSearchPollingTimeoutId); productSearchPollingTimeoutId = null;
+        }
         isContinuousSearchingProduct = false;
-        if(uiElements.startSearchButton) { uiElements.startSearchButton.textContent = CONFIG.startContinuousSearchText; uiElements.startSearchButton.disabled = false; }
+        if(uiElements.startSearchButton) { uiElements.startSearchButton.textContent = CONFIG.startContinuousSearchText; uiElements.startSearchButton.disabled = false;
+        }
         if(uiElements.modelSearchInput) uiElements.modelSearchInput.disabled = false;
         log('info','جستجوی محصول متوقف شد.');
     }
@@ -888,6 +893,7 @@
         const lastSmsTime = parseInt(localStorage.getItem(CONFIG.smsTimestampKey) || '0');
         const now = Date.now();
         const cooldownMs = CONFIG.smsCooldownMinutes * 60 * 1000;
+
         const timePassed = now - lastSmsTime;
 
         if (timePassed < cooldownMs) {
@@ -904,14 +910,17 @@
     }
 
     async function handleManualSmsRequest() {
-        if(!currentOrderData.selectedProject){ displayMessage('ابتدا محصول باید انتخاب شود.','warn'); return; }
-        if(!checkSmsCooldownOnLoad()){ displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn'); return; }
+        if(!currentOrderData.selectedProject){ displayMessage('ابتدا محصول باید انتخاب شود.','warn');
+        return; }
+        if(!checkSmsCooldownOnLoad()){ displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn'); return;
+        }
         // NEW LOGIC: این تابع requestAndHandleSms اکنون همیشه True برمی‌گرداند و پولینگ را شروع می‌کند.
         await requestAndHandleSms(true);
     }
 
     async function handleSubmitOrder() {
-        if (currentOrderData.isSubmittingOrderProcess) { return; }
+        if (currentOrderData.isSubmittingOrderProcess) { return;
+        }
         currentOrderData.isSubmittingOrderProcess = true;
         stopMainProcess();
         if (uiElements.submitOrderButton) {
@@ -992,8 +1001,10 @@
     // --- 🚀 SCRIPT INITIALIZATION & ENTRY POINT ---
     // =====================================================================================
     function ensureUIExists() {
-        if (!document.getElementById('ikd-bot-trigger-btn')) { createTriggerButton(); }
-        if (!document.getElementById('ikd-main-process-popup')) { createMainPopupUI(); }
+        if (!document.getElementById('ikd-bot-trigger-btn')) { createTriggerButton();
+        }
+        if (!document.getElementById('ikd-main-process-popup')) { createMainPopupUI();
+        }
     }
 
     function initializeScript() {
@@ -1066,47 +1077,75 @@
             .popup{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:none;justify-content:center;align-items:center;z-index:10001;padding:20px;backdrop-filter:blur(3px);direction:rtl}
             .popup-content-wrapper{background-color:var(--theme-secondary);color:var(--theme-text-light);border-radius:var(--border-radius-md);width:100%;max-width:900px;max-height:95vh;box-shadow:0 1rem 3rem rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,0.1)}
             .popup-header{background:linear-gradient(135deg, rgba(43,65,87,1) 0%, rgba(30,45,60,1) 100%);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1);flex-wrap: wrap;}
-            .popup-header-left { display: flex; align-items: center; gap: 15px; }
-            .popup-header-right { display: flex; align-items: center; gap: 20px; }
+            .popup-header-left { display: flex;
+            align-items: center; gap: 15px; }
+            .popup-header-right { display: flex;
+            align-items: center; gap: 20px; }
             .popup-logo{height:40px;filter: drop-shadow(0 0 5px rgba(244,162,97,0.5));}
-            .popup-title { font-size: 1.25rem; font-weight: 500; margin: 0; color: #fff; }
-            .header-info-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--theme-light-gray); }
-            .header-info-item svg { color: var(--theme-primary); }
+            .popup-title { font-size: 1.25rem;
+            font-weight: 500; margin: 0; color: #fff; }
+            .header-info-item { display: flex;
+            align-items: center; gap: 8px; font-size: 0.85rem; color: var(--theme-light-gray); }
+            .header-info-item svg { color: var(--theme-primary);
+            }
             /* Adjusted for clock and version in one line */
             #live-clock-and-version {
-                direction: ltr; font-family: monospace; /* For better readability of time/version */
+                direction: ltr;
+                font-family: monospace; /* For better readability of time/version */
             }
             .bot-version-display {
-                font-size: 0.75rem; color: rgba(255,255,255,0.6);
+                font-size: 0.75rem;
+                color: rgba(255,255,255,0.6);
                 margin-left: 8px; /* Spacing between time and version */
             }
             .popup-close-btn{background:transparent;border:none;color:var(--theme-light-gray);font-size:28px;font-weight:700;cursor:pointer;padding:0 8px;line-height:1;transition:color .2s ease, transform .2s ease;}
-            .popup-close-btn:hover{color:var(--theme-primary); transform: rotate(90deg);}
+            .popup-close-btn:hover{color:var(--theme-primary);
+            transform: rotate(90deg);}
             .popup-main-content{padding:1.5rem;display:flex;flex-direction:column;gap:1.5rem;overflow-y:auto;flex-grow:1}
-            .popup-section{background-color:rgba(255,255,255,.03);padding:1.25rem;border-radius:var(--border-radius-md); border: 1px solid rgba(255,255,255,0.08);}
+            .popup-section{background-color:rgba(255,255,255,.03);padding:1.25rem;border-radius:var(--border-radius-md);
+            border: 1px solid rgba(255,255,255,0.08);}
             .section-title{margin:0 0 1rem;color:var(--theme-primary);border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:10px;font-size:1.1rem;font-weight:500;}
-            .search-input-group, .settings-input-group { display: flex; gap: 10px; }
+            .search-input-group, .settings-input-group { display: flex;
+            gap: 10px; }
             .styled-input{width:100%;padding:12px 15px;margin:0;border:1px solid rgba(255,255,255,.2);border-radius:var(--border-radius-sm);font-size:1rem;background-color:rgba(0,0,0,.25);color:var(--theme-text-light);transition:border-color .2s ease,box-shadow .2s ease}
             .styled-input::placeholder{color:rgba(255,255,255,.4)}
             .styled-input:focus{outline:0;border-color:var(--theme-primary);box-shadow:0 0 0 .2rem rgba(244,162,97,.3)}
             .action-btn{padding:12px 18px;font-size:1rem;font-weight:500;border-radius:var(--border-radius-sm);cursor:pointer;border:none;transition:all .2s ease;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
-            .action-btn.primary-btn{background:linear-gradient(145deg, #f4a261, #e76f51);color:white; box-shadow: 0 4px 15px rgba(0,0,0,0.2);}
-            .action-btn.primary-btn:hover{transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3);}
-            .action-btn.secondary-btn { background-color: #495057; color: var(--theme-text-light); }
-            .action-btn.secondary-btn:hover { background-color: #5a6268; }
-            .action-btn:disabled{background: #555c63 !important; color:#868e96!important;cursor:not-allowed;transform:none;box-shadow:none;}
+            .action-btn.primary-btn{background:linear-gradient(145deg, #f4a261, #e76f51);color:white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);}
+            .action-btn.primary-btn:hover{transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);}
+            .action-btn.secondary-btn { background-color: #495057;
+            color: var(--theme-text-light); }
+            .action-btn.secondary-btn:hover { background-color: #5a6268;
+            }
+            .action-btn:disabled{background: #555c63 !important;
+            color:#868e96!important;cursor:not-allowed;transform:none;box-shadow:none;}
             /* NEW Product Card Styles */
-            .items-grid .found-product-card { background-color: rgba(255,255,255,.05); border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 20px; padding: 1rem; overflow: hidden; transition: all .3s ease; }
-            .items-grid .found-product-card:hover { border-color: var(--theme-primary); background-color: rgba(255,255,255,.08); }
-            .found-product-image { width: 120px; height: 120px; flex-shrink: 0; border-radius: var(--border-radius-sm); overflow: hidden; }
-            .found-product-image img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s ease; }
-            .found-product-card:hover .found-product-image img { transform: scale(1.1); }
-            .found-product-details { display: flex; flex-direction: column; gap: 0.5rem; flex-grow: 1; }
-            .found-product-title { font-size: 1.2rem; font-weight: 500; color: var(--theme-primary); margin: 0; }
-            .found-product-model { font-size: .9rem; color: var(--theme-light-gray); margin: 0; line-height: 1.5; }
-            .found-product-price { display: flex; align-items: center; gap: 8px; background-color: rgba(0,0,0,.2); padding: .5rem 1rem; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; margin-top: 0.5rem; align-self: flex-start; }
-            .found-product-price .price-value { color: var(--theme-primary); font-weight: bold; }
-            .found-product-price svg { color: var(--theme-primary); }
+            .items-grid .found-product-card { background-color: rgba(255,255,255,.05);
+            border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 20px; padding: 1rem; overflow: hidden; transition: all .3s ease;
+            }
+            .items-grid .found-product-card:hover { border-color: var(--theme-primary); background-color: rgba(255,255,255,.08);
+            }
+            .found-product-image { width: 120px; height: 120px; flex-shrink: 0;
+            border-radius: var(--border-radius-sm); overflow: hidden; }
+            .found-product-image img { width: 100%;
+            height: 100%; object-fit: cover; transition: transform .3s ease; }
+            .found-product-card:hover .found-product-image img { transform: scale(1.1);
+            }
+            .found-product-details { display: flex; flex-direction: column; gap: 0.5rem;
+            flex-grow: 1; }
+            .found-product-title { font-size: 1.2rem; font-weight: 500;
+            color: var(--theme-primary); margin: 0; }
+            .found-product-model { font-size: .9rem;
+            color: var(--theme-light-gray); margin: 0; line-height: 1.5; }
+            .found-product-price { display: flex;
+            align-items: center; gap: 8px; background-color: rgba(0,0,0,.2); padding: .5rem 1rem; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; margin-top: 0.5rem; align-self: flex-start;
+            }
+            .found-product-price .price-value { color: var(--theme-primary); font-weight: bold;
+            }
+            .found-product-price svg { color: var(--theme-primary);
+            }
             .captcha-sms-messages-container{display:none;gap:20px;align-items:flex-start}
             @media(min-width:768px){.captcha-sms-messages-container{flex-direction:row}.captcha-sms-box{flex:1.2}.messages-box{flex:.8}}
             .captcha-sms-box,.messages-box{min-width:0}
@@ -1114,7 +1153,8 @@
             .messages-content::-webkit-scrollbar{width:8px}
             .messages-content::-webkit-scrollbar-track{background:rgba(255,255,255,.05)}
             .messages-content::-webkit-scrollbar-thumb{background-color:var(--theme-primary);border-radius:4px}
-            .message{padding:10px 12px;margin-bottom:8px;border-radius:var(--border-radius-sm);font-size:13px;display:flex;align-items:center;gap:10px;line-height:1.5; background-color: rgba(50,150,255,.1); color: rgba(200,220,255,.9); border-left: 4px solid #39f;}
+            .message{padding:10px 12px;margin-bottom:8px;border-radius:var(--border-radius-sm);font-size:13px;display:flex;align-items:center;gap:10px;line-height:1.5;
+            background-color: rgba(50,150,255,.1); color: rgba(200,220,255,.9); border-left: 4px solid #39f;}
             .message.success{background-color:rgba(40,200,130,.1);color:rgba(200,255,220,.9);border-left-color:#2c8;}
             .message.error{background-color:rgba(255,60,60,.1);color:rgba(255,200,200,.9);border-left-color:#f44;}
             .message.warn{background-color:rgba(255,170,0,.1);color:rgba(255,220,180,.9);border-left-color:#fa0;}
@@ -1123,21 +1163,143 @@
             .captcha-image-container{text-align:center;margin-bottom:15px;background-color:#fff;padding:10px;border-radius:var(--border-radius-sm);border:1px solid rgba(255,255,255,.1);min-height:60px;display:flex;justify-content:center;align-items:center}
             .captcha-image-container img,.captcha-image-container svg{max-width:230px;height:auto;display:inline-block}
             .sms-input-group{display:flex;gap:10px;align-items:center;margin-bottom:15px}
-            .sms-input-group .styled-input{margin-bottom:0;flex-grow:1; width: auto;}
-            .sms-btn{padding:12px 15px;flex-shrink:0; width: auto;}
-            .submit-order-btn{margin-top:10px; font-size: 1.1rem; padding: 15px;}
+            .sms-input-group .styled-input{margin-bottom:0;flex-grow:1;
+            width: auto;}
+            .sms-btn{padding:12px 15px;flex-shrink:0;
+            width: auto;}
+            .submit-order-btn{margin-top:10px; font-size: 1.1rem;
+            padding: 15px;}
             /* UPDATED Styles for settings layout */
-            .settings-section { background-color: rgba(0,0,0,0.2); }
-            .main-settings-controls { display: flex; gap: 10px; }
-            .main-settings-controls .action-btn { flex-grow: 1; }
-            .settings-panel { background-color: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--border-radius-sm); margin-top: 1rem; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; }
-            .settings-panel label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--theme-light-gray); }
-            .solver-options-panel { margin-top: 1rem; padding: 1rem; background-color: rgba(0,0,0,0.2); border-radius: var(--border-radius-sm); border: 1px solid rgba(255,255,255,0.1); }
-            .panel-label { display: block; margin-bottom: 0.75rem; font-size: 0.9rem; font-weight: 500; color: var(--theme-light-gray); }
-            .settings-options { display: flex; justify-content: space-around; }
-            .settings-options label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--theme-light-gray); font-size: 0.9rem; }
-            .settings-options input[type="radio"] { accent-color: var(--theme-primary); }
-            @media(max-width:767px){.captcha-sms-messages-container{flex-direction:column}.popup-header{padding:10px 15px; flex-direction: column; align-items: flex-start; gap: 10px;}.popup-main-content{padding:15px;gap:15px}.popup-section{padding:15px}.section-title{font-size:17px;margin-bottom:12px}.items-grid .item h4{font-size:16px}.items-grid .item p{font-size:13px}.message{font-size:12px}}
+            .settings-section { background-color: rgba(0,0,0,0.2);
+            }
+            .main-settings-controls { display: flex; gap: 10px;
+            }
+            .main-settings-controls .action-btn { flex-grow: 1;
+            }
+            .settings-panel { background-color: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--border-radius-sm);
+            margin-top: 1rem; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease;
+            }
+            .settings-panel label { display: block; margin-bottom: 0.5rem;
+            font-size: 0.9rem; color: var(--theme-light-gray); }
+            .solver-options-panel { margin-top: 1rem;
+            padding: 1rem; background-color: rgba(0,0,0,0.2); border-radius: var(--border-radius-sm); border: 1px solid rgba(255,255,255,0.1);
+            }
+            .panel-label { display: block; margin-bottom: 0.75rem; font-size: 0.9rem;
+            font-weight: 500; color: var(--theme-light-gray); }
+            .settings-options { display: flex;
+            justify-content: space-around; }
+            .settings-options label { display: flex;
+            align-items: center; gap: 8px; cursor: pointer; color: var(--theme-light-gray); font-size: 0.9rem;
+            }
+            .settings-options input[type="radio"] { accent-color: var(--theme-primary);
+            }
+            /* Original media query for mobile */
+            @media(max-width:767px){.captcha-sms-messages-container{flex-direction:column}.popup-header{padding:10px 15px; flex-direction: column; align-items: flex-start;
+            gap: 10px;}.popup-main-content{padding:15px;gap:15px}.popup-section{padding:15px}.section-title{font-size:17px;margin-bottom:12px}.items-grid .item h4{font-size:16px}.items-grid .item p{font-size:13px}.message{font-size:12px}}
+
+            /* NEW Mobile Optimization Styles */
+            @media (max-width: 767px) {
+                .popup-content-wrapper {
+                    width: 100%;
+                    margin: 10px;
+                    max-height: 98vh;
+                }
+                .popup-header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 10px;
+                    padding: 10px 15px;
+                }
+                .popup-header-right {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    width: 100%;
+                    gap: 8px;
+                }
+                .header-info-item {
+                    font-size: 0.9rem;
+                }
+                .popup-title {
+                    font-size: 1.1rem;
+                }
+                .popup-main-content {
+                    padding: 15px;
+                    gap: 15px;
+                }
+                .popup-section {
+                    padding: 15px;
+                }
+                .section-title {
+                    font-size: 1rem;
+                    margin-bottom: 12px;
+                }
+                .search-input-group,
+                .settings-input-group,
+                .sms-input-group {
+                    flex-direction: column;
+                    gap: 10px;
+                }
+                .action-btn {
+                    width: 100%;
+                    padding: 12px 15px;
+                    font-size: 0.95rem;
+                }
+                .styled-input {
+                    padding: 10px 12px;
+                    font-size: 0.95rem;
+                }
+                .items-grid .found-product-card {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 15px;
+                    padding: 1rem;
+                }
+                .found-product-image {
+                    width: 100%;
+                    height: 180px;
+                    border-radius: var(--border-radius-sm);
+                }
+                .found-product-details {
+                    width: 100%;
+                    text-align: center;
+                }
+                .found-product-title {
+                    font-size: 1.1rem;
+                }
+                .found-product-model {
+                    font-size: 0.85rem;
+                }
+                .found-product-price {
+                    align-self: center;
+                    margin-top: 0.8rem;
+                    font-size: 0.95rem;
+                    padding: 0.4rem 0.8rem;
+                }
+                .captcha-sms-messages-container {
+                    flex-direction: column;
+                    gap: 15px;
+                }
+                .messages-content {
+                    max-height: 200px;
+                }
+                .message {
+                    font-size: 0.8rem;
+                    padding: 8px 10px;
+                }
+                .captcha-image-container {
+                    min-height: 50px;
+                    padding: 8px;
+                }
+                .submit-order-btn {
+                    font-size: 1rem;
+                    padding: 12px;
+                }
+                .settings-options {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 8px;
+                }
+            }
         `);
     }
 
