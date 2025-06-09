@@ -43,12 +43,13 @@
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
         // New: Random delay ranges for more human-like behavior
-        minApiDelayMs: 500,  // Minimum delay before API calls (e.g., after finding product)
-        maxApiDelayMs: 1500, // Maximum delay before API calls
-        minRetryDelayMs: 3000, // Minimum delay for retries
-        maxRetryDelayMs: 6000, // Maximum delay for retries
-        minSubmitFailedDelayMs: 8000, // Minimum delay after failed final submit
-        maxSubmitFailedDelayMs: 15000 // Maximum delay after failed final submit
+        minApiDelayMs: 100,  // Minimum delay before API calls (e.g., after finding product)
+        maxApiDelayMs: 300, // Maximum delay before API calls
+        minRetryDelayMs: 1000, // Minimum delay for retries
+        maxRetryDelayMs: 3000, // Maximum delay for retries
+        minSubmitFailedDelayMs: 1500, // Minimum delay after failed final submit
+        maxSubmitFailedDelayMs: 3000, // Maximum delay after failed final submit
+        botVersion: 'v3.7.0' // Bot version
     };
 
     const API_ENDPOINTS_IKD = {
@@ -171,7 +172,6 @@
     async function getOrderDetailsFromIKD(projectData) {
         const payload = { idDueDeliverProg: projectData.IdDueDeliverProg };
         try {
-            // Corrected Content-Type for exact match with HAR
             const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.readSefareshInfo, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && response.data.rows?.length) {
@@ -187,7 +187,6 @@
     async function getCaptchaOrderFromIKD(cardId) {
         const payload = { "captchaName": "Order", "token": "", "captchaId": parseInt(cardId), "apiId": "06290E83-E12E-4910-9C12-942F78131CE6" };
         try {
-             // Corrected Content-Type for exact match with HAR
              const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.getCaptchaOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && (response.data.dataImage || response.data.capchaData)) {
@@ -208,10 +207,8 @@
             const timeLeftMs = cooldownMs - (now - lastSmsTime);
             return { success: false, error: `محدودیت زمانی ارسال SMS.`, isCooldown: true, timeLeftMs };
         }
-        // Added idDueDeliverProg to SMS payload as per HAR analysis
         const payload = { smsType: "Order", systemCode: "SaleInternet", idDueDeliverProg: currentOrderData.selectedProject?.IdDueDeliverProg };
         try {
-            // Corrected Content-Type for exact match with HAR
             const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.sendSmsOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0) {
@@ -226,9 +223,8 @@
     }
 
     async function addOrderToIKD(orderPayload) {
-        await sleep(getRandomDelay(CONFIG.minApiDelayMs, CONFIG.maxApiDelayMs)); // Add random sleep before final submit
+        await sleep(getRandomDelay(CONFIG.minApiDelayMs, CONFIG.maxApiDelayMs));
         try {
-            // Corrected Content-Type for exact match with HAR
             const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
             const r = await axios.post(API_ENDPOINTS_IKD.addSefaresh, orderPayload, { headers, withCredentials: true });
             if (r.data && r.data.identity) {
@@ -363,13 +359,13 @@
                     <h2 class="popup-title">ربات خرید ایران‌خودرو دیزل</h2>
                 </div>
                 <div class="popup-header-right">
-                     <div class="header-info-item">
+                    <div class="header-info-item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-phone-fill" viewBox="0 0 16 16"><path d="M3 2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V2zm6 11a1 1 0 1 0-2 0 1 1 0 0 0 2 0z"/></svg>
                         <span id="user-display-name">${mobileNumber}</span>
                     </div>
                     <div class="header-info-item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clock-fill" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"/></svg>
-                        <div id="live-clock" class="popup-clock">00:00</div>
+                        <div id="live-clock-and-version" class="popup-clock">00:00 <span class="bot-version-display">${CONFIG.botVersion}</span></div>
                     </div>
                     <button class="popup-close-btn" title="بستن">${CONFIG.closeIconText}</button>
                 </div>
@@ -384,7 +380,7 @@
                         </button>
                         <button class="action-btn secondary-btn" id="check-update-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-cloud-arrow-down-fill" viewBox="0 0 16 16"><path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 6.854-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 9.293V5.5a.5.5 0 0 1 1 0v3.793l1.146-1.147a.5.5 0 0 1 .708.708z"/></svg>
-                            <span>${CONFIG.updateButtonText}</span>
+                           <span>${CONFIG.updateButtonText}</span>
                         </button>
                     </div>
                     <div class="settings-panel" id="mobile-input-panel" style="display: none;">
@@ -442,8 +438,9 @@
             modelSearchInput: document.getElementById('model-search-input-popup'),
             startSearchButton: document.getElementById('start-search-btn-popup'),
             closeMainPopupButton: popup.querySelector('.popup-close-btn'),
-            liveClock: document.getElementById('live-clock'),
+            // Removed direct reference to liveClock, as it's now part of 'live-clock-and-version'
             userDisplayName: document.getElementById('user-display-name'),
+            liveClockAndVersion: document.getElementById('live-clock-and-version'), // Reference to the combined element
             searchResultsSection: popup.querySelector('.search-results-section'),
             itemsGrid: document.getElementById('search-items-grid-popup'),
             captchaSmsContainer: popup.querySelector('.captcha-sms-messages-container'),
@@ -536,9 +533,11 @@
     }
 
     function updateClockDisplay() {
-        if(!uiElements.liveClock) return;
+        // Updated to include bot version
+        if(!uiElements.liveClockAndVersion) return;
         const n = new Date();
-        uiElements.liveClock.textContent = `${n.getHours().toString().padStart(2,'0')}:${n.getMinutes().toString().padStart(2,'0')}`;
+        const timeString = `${n.getHours().toString().padStart(2,'0')}:${n.getMinutes().toString().padStart(2,'0')}`;
+        uiElements.liveClockAndVersion.innerHTML = `${timeString} <span class="bot-version-display">${CONFIG.botVersion}</span>`;
     }
 
     function displayFoundItem(project) {
@@ -674,13 +673,11 @@
                 displayMessage('محدودیت زمانی SMS فعال است. ربات همچنان کد را از سرور واسط می‌خواند.', 'warn');
                 startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
             }
-            // *** CRITICAL CHANGE: Always return true here regardless of IKD SMS request success/failure (unless manual request and button disabled) ***
-            // This means the bot will proceed to wait for SMS from relay server even if IKD SMS request fails.
-            return true; // Return true to mean "continue, SMS polling is active"
+            return true;
         } else {
             displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
-            if(isManualRequest) startManualSmsCooldownTimer(); // For manual request, start timer
-            return true; // Return success
+            if(isManualRequest) startManualSmsCooldownTimer();
+            return true;
         }
     }
 
@@ -695,12 +692,10 @@
             if (uiElements.smsInput) uiElements.smsInput.value = '';
             checkAndEnableSubmitButton();
 
-            // Add a random delay before starting the order process steps
             await sleep(getRandomDelay(CONFIG.minApiDelayMs, CONFIG.maxApiDelayMs));
 
             displayMessage('در حال دریافت اطلاعات سفارش و کپچا...', 'info');
-            // Fetch order details and captcha concurrently
-            const [orderDetailsResult, captchaResult] = await Promise.all([
+            const [orderDetailsResult, captchaApiResult] = await Promise.all([
                 getOrderDetailsFromIKD(currentOrderData.selectedProject),
                 getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg)
             ]);
@@ -713,49 +708,49 @@
             currentOrderData.orderDetails = orderDetailsResult.data;
             log('success', 'اطلاعات اولیه سفارش با موفقیت دریافت شد.');
 
-            // Handle Captcha Result (which was fetched concurrently)
-            let captchaSuccess = false;
-            if (captchaResult.success) {
-                displayCaptcha(captchaResult.data);
-                currentOrderData.captchaToken = captchaResult.data.token;
-                const solveResponse = await solveCaptcha(captchaResult.data);
+            // --- Handle Captcha Processing ---
+            let captchaSolveSuccess = false; // Track if captcha was successfully solved or handled for manual input
+            if (!captchaApiResult.success) {
+                 displayMessage(`خطا در دریافت کپچا: ${captchaApiResult.error}. تلاش مجدد...`, 'error');
+                 setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+                 return;
+            }
+            displayCaptcha(captchaApiResult.data);
+            currentOrderData.captchaToken = captchaApiResult.data.token; // Set captcha token
+
+            if (selectedSolver === 'solver-none') {
+                displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
+                currentOrderData.captchaAutoFilled = false;
+                captchaSolveSuccess = true; // Assume success if manual input is expected
+            } else {
+                const solveResponse = await solveCaptcha(captchaApiResult.data);
                 if (solveResponse.success && solveResponse.answer) {
                     displayMessage('کپچای جدید به طور خودکار حل شد.', 'success');
                     currentOrderData.captchaCode = solveResponse.answer;
                     currentOrderData.captchaAutoFilled = true;
                     uiElements.captchaInput.value = solveResponse.answer;
-                    captchaSuccess = true;
+                    captchaSolveSuccess = true;
                 } else {
                     currentOrderData.captchaAutoFilled = false;
                     displayMessage(`حل خودکار کپچا ناموفق بود: ${solveResponse.error}`, 'warn');
-                    // Even if auto-solve fails, we might proceed if solver-none selected, or allow manual input
-                    captchaSuccess = (selectedSolver === 'solver-none'); // If manual, considered "successful" to proceed
+                    captchaSolveSuccess = false; // Auto-solve failed
                 }
-            } else {
-                displayMessage(`خطا در دریافت کپچا: ${captchaResult.error}. تلاش مجدد...`, 'error');
-                setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
-                return;
             }
 
             // If captcha is not successfully filled (auto or manually allowed), restart the process.
-            // This is crucial for handling cases where auto-solve fails and manual input is not desired/possible immediately.
-            if (!captchaSuccess && uiElements.captchaInput.value.trim() === '') {
-                 displayMessage('کپچا پر نشد. فرآیند مجدداً آغاز می‌شود.', 'warn');
+            if (!captchaSolveSuccess && uiElements.captchaInput.value.trim() === '') {
+                 displayMessage('کپچا پر نشد/حل نشد. فرآیند مجدداً آغاز می‌شود.', 'warn');
                  setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
                  return;
             }
 
-            checkAndEnableSubmitButton(); // Check and enable submit button after captcha is filled (auto or manually)
+            checkAndEnableSubmitButton();
 
-            // Proceed with SMS request.
-            // requestAndHandleSms now always returns true to ensure polling starts, regardless of IKD SMS response
             await requestAndHandleSms(false);
-            // No conditional restart here based on smsRequestStatus, as desired.
-            // The process will now wait for SMS via polling or manual input.
 
         } catch (e) {
             log('error', 'یک خطای پیش‌بینی نشده در فرآیند اصلی رخ داد. ربات مجددا تلاش خواهد کرد.', e);
-            displayMessage(`یک خطای غیرمنتظره رخ داد: ${e.message}. شروع مجدد...`, 'error');
+            displayMessage(`یک خطای غیرانتظره رخ داد: ${e.message}. شروع مجدد...`, 'error');
             setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
         }
     }
@@ -911,7 +906,6 @@
         }
 
         const finalOrderDetails = currentOrderData.orderDetails;
-        // idBank is kept as 23 as per user's last instruction
         const orderPayload = { agency: finalOrderDetails.agency, agencyId: parseInt(finalOrderDetails.agencyId), agencyShow: 2, captchaText: currentOrderData.captchaCode, captchaToken: currentOrderData.captchaToken, idBank: 23, idBaseColor: parseInt(finalOrderDetails.selectedColor), idBaseUsage: parseInt(finalOrderDetails.selectedUsage), quantity: 1, responDoc: true, idDueDeliverProg: parseInt(currentOrderData.selectedProject.IdDueDeliverProg), smsKey: currentOrderData.smsCode, valueId: generateUUID(), };
         const addOrderResponse = await addOrderToIKD(orderPayload);
 
@@ -957,7 +951,7 @@
     }
 
     function initializeScript() {
-        log('info', `Script initializing (v3.9.0 Compact Product Card).`);
+        log('info', `Script initializing (${CONFIG.botVersion} Compact Product Card).`);
         selectedSolver = GM_getValue('selectedSolver', 'solver-2');
         mobileNumber = GM_getValue('savedMobileNumber', CONFIG.defaultMobileNumber);
         log('info', `حل‌کننده کپچای انتخاب شده: ${selectedSolver}`);
@@ -976,8 +970,8 @@
         applyStyles();
         createMainPopupUI();
         createTriggerButton();
-        updateClockDisplay();
-        setInterval(updateClockDisplay, 1000 * 30);
+        updateClockDisplay(); // Initial display
+        setInterval(updateClockDisplay, 1000 * 30); // Update every 30 seconds
         setInterval(ensureUIExists, 2000);
         log('info', 'اسکریپت مقداردهی اولیه شد و UI در حال پایش است.');
     }
@@ -1032,7 +1026,16 @@
             .popup-title { font-size: 1.25rem; font-weight: 500; margin: 0; color: #fff; }
             .header-info-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--theme-light-gray); }
             .header-info-item svg { color: var(--theme-primary); }
-            .popup-clock{direction:ltr}
+            /* Adjusted for clock and version in one line */
+            #live-clock-and-version {
+                direction: ltr;
+                font-family: monospace; /* For better readability of time/version */
+            }
+            .bot-version-display {
+                font-size: 0.75rem;
+                color: rgba(255,255,255,0.6);
+                margin-left: 8px; /* Spacing between time and version */
+            }
             .popup-close-btn{background:transparent;border:none;color:var(--theme-light-gray);font-size:28px;font-weight:700;cursor:pointer;padding:0 8px;line-height:1;transition:color .2s ease, transform .2s ease;}
             .popup-close-btn:hover{color:var(--theme-primary); transform: rotate(90deg);}
             .popup-main-content{padding:1.5rem;display:flex;flex-direction:column;gap:1.5rem;overflow-y:auto;flex-grow:1}
