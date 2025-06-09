@@ -49,7 +49,7 @@
         maxRetryDelayMs: 3000, // Maximum delay for retries
         minSubmitFailedDelayMs: 1500, // Minimum delay after failed final submit
         maxSubmitFailedDelayMs: 3000, // Maximum delay after failed final submit
-        botVersion: 'v3.7.0' // Bot version
+        botVersion: 'v3.8.0' // Bot version
     };
 
     const API_ENDPOINTS_IKD = {
