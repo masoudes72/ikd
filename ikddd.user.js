@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         irankhodrodisel_v3.7.0
+// @name         irankhodrodisel
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-12.15
+// @version      2025-06-12.16
 // @description  Redesigned the found product card to be more compact, modern, and visually appealing.
 // @author       Masoud
 // @match        https://esale.ikd.ir/*
@@ -28,13 +28,13 @@
         remoteSolverUrl2: 'https://oikd.sipa-solver.shop/solve',
         defaultMobileNumber: '09000000000', // This is now a fallback
         smsCooldownMinutes: 5,
-        apiRetryDelayMs: 4000,
+        apiRetryDelayMs: 4000, // این مقدارها اکنون با autoSolverConfig/manualInputConfig جایگزین می‌شوند
         searchPollingIntervalMs: 2500,
         smsRelayPollingIntervalMs: 1500,
-        failedSubmitDelayMs: 5000,
+        failedSubmitDelayMs: 5000, // این مقدارها اکنون با autoSolverConfig/manualInputConfig جایگزین می‌شوند
         logoImageUrl: 'https://esale.ikd.ir/logo.png',
         closeIconText: '&times;',
-        triggerButtonText: 'فعال‌سازی ربات', // Shortened text
+        triggerButtonText: 'فعال‌سازی ربات',
         popupSearchPlaceholder: 'نام دقیق محصول مورد نظر',
         startContinuousSearchText: 'شروع جستجوی مستمر',
         stopContinuousSearchText: 'توقف جستجو',
@@ -42,14 +42,33 @@
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
-        // New: Random delay ranges for more human-like behavior
-        minApiDelayMs: 100,  // Minimum delay before API calls (e.g., after finding product)
-        maxApiDelayMs: 300, // Maximum delay before API calls
-        minRetryDelayMs: 1000, // Minimum delay for retries
-        maxRetryDelayMs: 3000, // Maximum delay for retries
-        minSubmitFailedDelayMs: 1500, // Minimum delay after failed final submit
-        maxSubmitFailedDelayMs: 3000, // Maximum delay after failed final submit
-        botVersion: 'v3.8.0' // Bot version
+        botVersion: 'v3.9.0', // نسخه به‌روزرسانی شده
+
+        // NEW: مجموعه تنظیمات برای حالت حل خودکار (Auto Solver)
+        autoSolverConfig: {
+            minApiDelayMs: 200,    // حداقل تأخیر قبل از فراخوانی‌های API در حالت خودکار
+            maxApiDelayMs: 600,    // حداکثر تأخیر قبل از فراخوانی‌های API در حالت خودکار
+            minRetryDelayMs: 1500, // حداقل تأخیر برای تلاش‌های مجدد API در حالت خودکار (عمومی برای API)
+            maxRetryDelayMs: 4000, // حداکثر تأخیر برای تلاش‌های مجدد API در حالت خودکار (عمومی برای API)
+            minSubmitFailedDelayMs: 2000, // حداقل تأخیر پس از ثبت نهایی ناموفق در حالت خودکار
+            maxSubmitFailedDelayMs: 5000, // حداکثر تأخیر پس از ثبت نهایی ناموفق در حالت خودکار
+            // تأخیرهای خاص برای تلاش‌های حل کپچا
+            minCaptchaRetryDelayMs: 500,
+            maxCaptchaRetryDelayMs: 1500,
+            solverOrder: ['solver-2', 'solver-1'], // ترتیب ترجیحی سرورهای حل کننده
+            maxCaptchaSolveRetries: 3 // تعداد تلاش مجدد برای حل کپچا توسط سرور
+        },
+
+        // NEW: مجموعه تنظیمات برای حالت دستی (Manual Input)
+        manualInputConfig: {
+            minApiDelayMs: 50,     // حداقل تأخیر قبل از فراخوانی‌های API در حالت دستی
+            maxApiDelayMs: 200,    // حداکثر تأخیر قبل از فراخوانی‌های API در حالت دستی
+            minRetryDelayMs: 500,  // حداقل تأخیر برای تلاش‌های مجدد API در حالت دستی
+            maxRetryDelayMs: 2000, // حداکثر تأخیر برای تلاش‌های مجدد API در حالت دستی
+            minSubmitFailedDelayMs: 1000, // حداقل تأخیر پس از ثبت نهایی ناموفق در حالت دستی
+            maxSubmitFailedDelayMs: 3000, // حداکثر تأخیر پس از ثبت نهایی ناموفق در حالت دستی
+            // در حالت دستی solverOrder و maxCaptchaSolveRetries معنی ندارند
+        }
     };
 
     const API_ENDPOINTS_IKD = {
@@ -72,7 +91,7 @@
     let smsCooldownInterval = null;
     let productSearchPollingTimeoutId = null;
     let isContinuousSearchingProduct = false;
-    let selectedSolver = 'solver-2';
+    let selectedSolver = 'solver-2'; // مقدار پیش‌فرض که از GM_getValue بارگذاری می‌شود
 
     const getSimulatedHeaders = (refererPage = 'products') => ({
         'Accept': 'application/json, text/plain, */*',
@@ -88,6 +107,15 @@
         'Priority': 'u=0',
     });
 
+    // NEW: تابع کمکی برای دریافت تنظیمات فعال بر اساس حالت حل‌کننده
+    function getActiveConfig() {
+        if (selectedSolver === 'solver-none') {
+            return CONFIG.manualInputConfig;
+        } else {
+            return CONFIG.autoSolverConfig;
+        }
+    }
+
     window.onerror = function(message, source, lineno, colno, error) {
         log('error', 'یک خطای پیش‌بینی نشده در سطح اسکریپت رخ داد!', { message, source, lineno, colno, error });
         if (uiElements.systemMessagesContent) {
@@ -97,7 +125,7 @@
             if (currentOrderData.selectedProject && !currentOrderData.isSubmittingOrderProcess) {
                  startOrderProcess();
             }
-        }, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+        }, getRandomDelay(getActiveConfig().minRetryDelayMs, getActiveConfig().maxRetryDelayMs));
         return true;
     };
 
@@ -190,7 +218,6 @@
              const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.getCaptchaOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && (response.data.dataImage || response.data.capchaData)) {
-                currentOrderData.captchaToken = response.data.token;
                 return { success: true, data: response.data };
             }
             return { success: false, error: response.data.message || "پاسخ سرور فاقد تصویر کپچا بود." };
@@ -223,7 +250,9 @@
     }
 
     async function addOrderToIKD(orderPayload) {
-        await sleep(getRandomDelay(CONFIG.minApiDelayMs, CONFIG.maxApiDelayMs));
+        // NEW: استفاده از تنظیمات تأخیر از activeConfig
+        const activeConfig = getActiveConfig();
+        await sleep(getRandomDelay(activeConfig.minApiDelayMs, activeConfig.maxApiDelayMs));
         try {
             const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
             const r = await axios.post(API_ENDPOINTS_IKD.addSefaresh, orderPayload, { headers, withCredentials: true });
@@ -253,18 +282,33 @@
             return { success: false, error: "فایل کپچا برای حل موجود نیست." };
         }
 
-        const solvers = [];
-        if (selectedSolver === 'solver-1' && CONFIG.remoteSolverUrl1) {
-            solvers.push({ name: 'سرور ۱ (عمومی)', url: CONFIG.remoteSolverUrl1 });
-        } else if (selectedSolver === 'solver-2' && CONFIG.remoteSolverUrl2) {
-            solvers.push({ name: 'سرور ۲ (شخصی)', url: CONFIG.remoteSolverUrl2 });
+        const activeConfig = getActiveConfig(); // تنظیمات فعال
+        const solversToTry = [];
+
+        const definedSolvers = {
+            'solver-1': { name: 'سرور ۱ (عمومی)', url: CONFIG.remoteSolverUrl1 },
+            'solver-2': { name: 'سرور ۲ (شخصی)', url: CONFIG.remoteSolverUrl2 }
+        };
+
+        // NEW: استفاده از solverOrder تعریف شده در activeConfig (برای autoSolverConfig)
+        if (activeConfig.solverOrder && Array.isArray(activeConfig.solverOrder)) {
+            for (const solverKey of activeConfig.solverOrder) {
+                if (definedSolvers[solverKey] && definedSolvers[solverKey].url) {
+                    solversToTry.push(definedSolvers[solverKey]);
+                }
+            }
+        } else if (selectedSolver !== 'solver-none' && definedSolvers[selectedSolver] && definedSolvers[selectedSolver].url) {
+            // اگر solverOrder در کانفیگ فعال نباشد (مثلا برای دستی)
+            // یا اگر فقط یک سرور انتخاب شده باشد (رفتار فعلی)، همان را اضافه می‌کنیم
+            solversToTry.push(definedSolvers[selectedSolver]);
         }
 
-        if (solvers.length === 0) {
+
+        if (solversToTry.length === 0) {
              return { success: false, error: "حل‌کننده انتخاب شده در دسترس نیست یا تنظیم نشده است." };
         }
 
-        for (const solver of solvers) {
+        for (const solver of solversToTry) {
             try {
                 log('info', `تلاش برای حل کپچا با سرور: ${solver.name}`);
                 const formData = new FormData();
@@ -380,7 +424,7 @@
                         </button>
                         <button class="action-btn secondary-btn" id="check-update-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-cloud-arrow-down-fill" viewBox="0 0 16 16"><path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 6.854-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 9.293V5.5a.5.5 0 0 1 1 0v3.793l1.146-1.147a.5.5 0 0 1 .708.708z"/></svg>
-                           <span>${CONFIG.updateButtonText}</span>
+                            <span>${CONFIG.updateButtonText}</span>
                         </button>
                     </div>
                     <div class="settings-panel" id="mobile-input-panel" style="display: none;">
@@ -405,7 +449,7 @@
                         <input type="text" id="model-search-input-popup" class="styled-input" placeholder="${CONFIG.popupSearchPlaceholder}" />
                         <button class="action-btn primary-btn" id="start-search-btn-popup">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
-                           <span>${CONFIG.startContinuousSearchText}</span>
+                            <span>${CONFIG.startContinuousSearchText}</span>
                         </button>
                     </div>
                 </section>
@@ -438,9 +482,8 @@
             modelSearchInput: document.getElementById('model-search-input-popup'),
             startSearchButton: document.getElementById('start-search-btn-popup'),
             closeMainPopupButton: popup.querySelector('.popup-close-btn'),
-            // Removed direct reference to liveClock, as it's now part of 'live-clock-and-version'
             userDisplayName: document.getElementById('user-display-name'),
-            liveClockAndVersion: document.getElementById('live-clock-and-version'), // Reference to the combined element
+            liveClockAndVersion: document.getElementById('live-clock-and-version'),
             searchResultsSection: popup.querySelector('.search-results-section'),
             itemsGrid: document.getElementById('search-items-grid-popup'),
             captchaSmsContainer: popup.querySelector('.captcha-sms-messages-container'),
@@ -451,7 +494,6 @@
             getSmsCodeButton: document.getElementById('get-sms-code-btn-popup'),
             submitOrderButton: document.getElementById('submit-order-btn-popup'),
             noMessagePlaceholder: popup.querySelector('.no-message-exist'),
-            // UI Elements for settings
             toggleMobilePanelButton: document.getElementById('toggle-mobile-panel-btn'),
             mobileInputPanel: document.getElementById('mobile-input-panel'),
             mobileNumberInput: document.getElementById('mobile-number-input'),
@@ -620,49 +662,17 @@
         }
     }
 
-    async function fetchAndHandleCaptcha() {
-        if (currentOrderData.stopProcess || !currentOrderData.selectedProject) {
-            return { success: false, error: 'فرآیند متوقف شده یا محصول انتخاب نشده.' };
-        }
-
-        displayMessage('در حال دریافت کپچای جدید...', 'info');
-        const captchaApiResponse = await getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg);
-        if (!captchaApiResponse.success) {
-            displayMessage(`خطا در دریافت کپچا: ${captchaApiResponse.error}`, 'error');
-            return { success: false, error: captchaApiResponse.error };
-        }
-        displayCaptcha(captchaApiResponse.data);
-
-        if (selectedSolver === 'solver-none') {
-            displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
-            currentOrderData.captchaAutoFilled = false;
-            return { success: true }; // Return true to allow process to continue, but requires manual input
-        }
-
-        const solveResponse = await solveCaptcha(captchaApiResponse.data);
-        if (solveResponse.success && solveResponse.answer) {
-            displayMessage('کپچای جدید به طور خودکار حل شد.', 'success');
-            currentOrderData.captchaCode = solveResponse.answer;
-            currentOrderData.captchaAutoFilled = true;
-            uiElements.captchaInput.value = solveResponse.answer;
-            return { success: true };
-        } else {
-            currentOrderData.captchaAutoFilled = false;
-            displayMessage(`حل خودکار کپچا ناموفق بود: ${solveResponse.error}`, 'warn');
-            return { success: false, error: solveResponse.error }; // Return false if auto-solve failed
-        }
-    }
-
+    // NEW: تابع requestAndHandleSms برای اطمینان از شروع پولینگ بدون توجه به نتیجه درخواست
     async function requestAndHandleSms(isManualRequest = false) {
         if (isManualRequest && uiElements.getSmsCodeButton.disabled) {
             displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.', 'warn');
-            return false; // For manual request, if button disabled, exit
+            return true; // برای درخواست دستی، اگر دکمه غیرفعال است، خروج
         }
 
         displayMessage(`در حال ارسال درخواست SMS به ایران‌خودرو...`, 'info');
         if (isManualRequest) uiElements.getSmsCodeButton.disabled = true;
 
-        // Always start polling from relay server, regardless of IKD SMS request success
+        // NEW LOGIC: همیشه پولینگ از سرور رله را شروع می‌کنیم، بدون توجه به نتیجه درخواست IKD
         startSmsRelayPolling();
 
         const smsResponse = await requestSmsFromIKD();
@@ -673,16 +683,19 @@
                 displayMessage('محدودیت زمانی SMS فعال است. ربات همچنان کد را از سرور واسط می‌خواند.', 'warn');
                 startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
             }
-            return true;
+            return true; // همیشه True برمی‌گرداند تا فرآیند اصلی ادامه یابد
         } else {
             displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
             if(isManualRequest) startManualSmsCooldownTimer();
-            return true;
+            return true; // همیشه True برمی‌گرداند
         }
     }
 
+
     async function startOrderProcess() {
         if (currentOrderData.stopProcess || !currentOrderData.selectedProject || currentOrderData.isSubmittingOrderProcess) return;
+        const activeConfig = getActiveConfig(); // NEW: دریافت تنظیمات فعال
+
         try {
             log('info', 'شروع فرآیند اصلی...');
             currentOrderData.captchaAutoFilled = false;
@@ -692,9 +705,10 @@
             if (uiElements.smsInput) uiElements.smsInput.value = '';
             checkAndEnableSubmitButton();
 
-            await sleep(getRandomDelay(CONFIG.minApiDelayMs, CONFIG.maxApiDelayMs));
-
+            // NEW: استفاده از تأخیرهای مربوط به activeConfig
+            await sleep(getRandomDelay(activeConfig.minApiDelayMs, activeConfig.maxApiDelayMs));
             displayMessage('در حال دریافت اطلاعات سفارش و کپچا...', 'info');
+
             const [orderDetailsResult, captchaApiResult] = await Promise.all([
                 getOrderDetailsFromIKD(currentOrderData.selectedProject),
                 getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg)
@@ -702,56 +716,82 @@
 
             if (!orderDetailsResult.success) {
                 displayMessage(`خطا در دریافت اطلاعات سفارش: ${orderDetailsResult.error}. تلاش مجدد...`, 'error');
-                setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+                // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
+                setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
                 return;
             }
             currentOrderData.orderDetails = orderDetailsResult.data;
             log('success', 'اطلاعات اولیه سفارش با موفقیت دریافت شد.');
 
             // --- Handle Captcha Processing ---
-            let captchaSolveSuccess = false; // Track if captcha was successfully solved or handled for manual input
+            let captchaProcessSuccess = false;
             if (!captchaApiResult.success) {
                  displayMessage(`خطا در دریافت کپچا: ${captchaApiResult.error}. تلاش مجدد...`, 'error');
-                 setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+                 // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
+                 setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
                  return;
             }
             displayCaptcha(captchaApiResult.data);
-            currentOrderData.captchaToken = captchaApiResult.data.token; // Set captcha token
+            currentOrderData.captchaToken = captchaApiResult.data.token;
 
             if (selectedSolver === 'solver-none') {
                 displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
                 currentOrderData.captchaAutoFilled = false;
-                captchaSolveSuccess = true; // Assume success if manual input is expected
+                captchaProcessSuccess = true; // در این حالت فرض می‌کنیم دستی وارد می‌شود
             } else {
-                const solveResponse = await solveCaptcha(captchaApiResult.data);
-                if (solveResponse.success && solveResponse.answer) {
-                    displayMessage('کپچای جدید به طور خودکار حل شد.', 'success');
-                    currentOrderData.captchaCode = solveResponse.answer;
-                    currentOrderData.captchaAutoFilled = true;
-                    uiElements.captchaInput.value = solveResponse.answer;
-                    captchaSolveSuccess = true;
+                // NEW: منطق تلاش‌های متعدد برای حل کپچا در حالت خودکار
+                let captchaSolvedByAutoSolver = false;
+                for (let i = 0; i < activeConfig.maxCaptchaSolveRetries; i++) {
+                    displayMessage(`تلاش ${i + 1} از ${activeConfig.maxCaptchaSolveRetries} برای حل خودکار کپچا...`, 'info');
+                    const solveResponse = await solveCaptcha(captchaApiResult.data);
+                    if (solveResponse.success && solveResponse.answer) {
+                        displayMessage('کپچای جدید به طور خودکار حل شد.', 'success');
+                        currentOrderData.captchaCode = solveResponse.answer;
+                        currentOrderData.captchaAutoFilled = true;
+                        uiElements.captchaInput.value = solveResponse.answer;
+                        captchaSolvedByAutoSolver = true;
+                        break; // اگر حل شد، از حلقه خارج می‌شویم
+                    } else {
+                        displayMessage(`تلاش ${i + 1} برای حل خودکار کپچا ناموفق بود: ${solveResponse.error}.`, 'warn');
+                        // NEW: تأخیر بین تلاش‌های حل کپچا
+                        if (i < activeConfig.maxCaptchaSolveRetries - 1) {
+                            await sleep(getRandomDelay(activeConfig.minCaptchaRetryDelayMs, activeConfig.maxCaptchaRetryDelayMs));
+                        }
+                    }
+                }
+
+                if (captchaSolvedByAutoSolver) {
+                    captchaProcessSuccess = true;
                 } else {
                     currentOrderData.captchaAutoFilled = false;
-                    displayMessage(`حل خودکار کپچا ناموفق بود: ${solveResponse.error}`, 'warn');
-                    captchaSolveSuccess = false; // Auto-solve failed
+                    displayMessage('حل خودکار کپچا پس از چند تلاش ناموفق بود. لطفاً دستی وارد کنید.', 'warn');
+                    // اینجا می‌توانیم تصمیم بگیریم که آیا اگر حل خودکار کاملاً شکست خورد، فرآیند را مجدداً شروع کنیم
+                    // یا اجازه دهیم کاربر دستی وارد کند. برای پایداری بیشتر، بهتر است اجازه ورود دستی بدهیم.
+                    // اگر می‌خواهید در این مرحله هم فرآیند ری‌استارت شود:
+                    // setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
+                    // return;
+                    captchaProcessSuccess = true; // فرض می‌کنیم کاربر دستی وارد می‌کند تا فرآیند متوقف نشود
                 }
             }
 
-            // If captcha is not successfully filled (auto or manually allowed), restart the process.
-            if (!captchaSolveSuccess && uiElements.captchaInput.value.trim() === '') {
+            // اگر کپچا به صورت خودکار پر نشده و ورود دستی هم انجام نشده باشد، فرآیند را مجدداً آغاز کنید.
+            // (این شرط فقط در صورتی فعال می‌شود که 'solver-none' انتخاب نشده باشد و حل خودکار شکست خورده باشد و کاربر هم چیزی وارد نکرده باشد)
+            if (!currentOrderData.captchaAutoFilled && uiElements.captchaInput.value.trim() === '' && selectedSolver !== 'solver-none') {
                  displayMessage('کپچا پر نشد/حل نشد. فرآیند مجدداً آغاز می‌شود.', 'warn');
-                 setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+                 // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
+                 setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
                  return;
             }
 
             checkAndEnableSubmitButton();
 
+            // NEW: درخواست و مدیریت SMS (حتی اگر درخواست به IKD ناموفق باشد، پولینگ شروع می‌شود)
             await requestAndHandleSms(false);
-
         } catch (e) {
             log('error', 'یک خطای پیش‌بینی نشده در فرآیند اصلی رخ داد. ربات مجددا تلاش خواهد کرد.', e);
             displayMessage(`یک خطای غیرانتظره رخ داد: ${e.message}. شروع مجدد...`, 'error');
-            setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+            // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
+            setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
         }
     }
 
@@ -798,7 +838,6 @@
         uiElements.startSearchButton.textContent = CONFIG.stopContinuousSearchText;
         uiElements.modelSearchInput.disabled = true;
         displayMessage(`جستجوی مستمر برای "${st}" آغاز شد...`,'info');
-
         const searchLoop = async () => {
             if (!isContinuousSearchingProduct) return;
             await performContinuousProductSearchStep(st);
@@ -867,6 +906,7 @@
     async function handleManualSmsRequest() {
         if(!currentOrderData.selectedProject){ displayMessage('ابتدا محصول باید انتخاب شود.','warn'); return; }
         if(!checkSmsCooldownOnLoad()){ displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn'); return; }
+        // NEW LOGIC: این تابع requestAndHandleSms اکنون همیشه True برمی‌گرداند و پولینگ را شروع می‌کند.
         await requestAndHandleSms(true);
     }
 
@@ -881,6 +921,7 @@
 
         const captchaCode = uiElements.captchaInput.value.trim();
         const smsCode = uiElements.smsInput.value.trim();
+        const activeConfig = getActiveConfig(); // NEW: دریافت تنظیمات فعال
 
         if (!captchaCode || !smsCode) {
             displayMessage('کپچا و کد SMS هر دو باید پر شوند.', 'error');
@@ -890,7 +931,6 @@
         }
         currentOrderData.captchaCode = captchaCode;
         currentOrderData.smsCode = smsCode;
-
         if (!currentOrderData.selectedProject || !currentOrderData.captchaToken) {
             displayMessage('اطلاعات سفارش ناقص است.', 'error');
             resetPopupUI();
@@ -901,7 +941,8 @@
         if (!currentOrderData.orderDetails) {
             displayMessage('اطلاعات سفارش یافت نشد! فرآیند مجدداً آغاز می‌شود.', 'error');
             currentOrderData.isSubmittingOrderProcess = false;
-            setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+            // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
+            setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
             return;
         }
 
@@ -916,13 +957,14 @@
             displayMessage(`ثبت نهایی ناموفق: ${addOrderResponse.error}.`, 'error');
             log('error', 'ثبت نهایی ناموفق بود. پاسخ سرور:', addOrderResponse);
             log('warn', `کپچای ارسال شده: ${captchaCode}, کد پیامک ارسال شده: ${smsCode}. فرآیند مجدداً آغاز می‌شود.`);
-            const delay = getRandomDelay(CONFIG.minSubmitFailedDelayMs, CONFIG.maxSubmitFailedDelayMs);
+            // NEW: استفاده از تأخیرهای ثبت ناموفق از activeConfig
+            const delay = getRandomDelay(activeConfig.minSubmitFailedDelayMs, activeConfig.maxSubmitFailedDelayMs);
             displayMessage(`فرآیند تا ${delay / 1000} ثانیه دیگر به صورت خودکار مجدداً آغاز می‌شود...`, 'info');
             currentOrderData.isSubmittingOrderProcess = false;
             currentOrderData.stopProcess = false;
             if (uiElements.submitOrderButton) {
-                uiElements.submitOrderButton.disabled = false; // Enable the button
-                uiElements.submitOrderButton.textContent = 'ثبت نهایی سفارش'; // Reset text
+                uiElements.submitOrderButton.disabled = false;
+                uiElements.submitOrderButton.textContent = 'ثبت نهایی سفارش';
             }
             setTimeout(() => {
                 startOrderProcess();
@@ -974,8 +1016,8 @@
         applyStyles();
         createMainPopupUI();
         createTriggerButton();
-        updateClockDisplay(); // Initial display
-        setInterval(updateClockDisplay, 1000 * 30); // Update every 30 seconds
+        updateClockDisplay();
+        setInterval(updateClockDisplay, 1000 * 30);
         setInterval(ensureUIExists, 2000);
         log('info', 'اسکریپت مقداردهی اولیه شد و UI در حال پایش است.');
     }
@@ -1023,7 +1065,7 @@
             }
             .popup{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:none;justify-content:center;align-items:center;z-index:10001;padding:20px;backdrop-filter:blur(3px);direction:rtl}
             .popup-content-wrapper{background-color:var(--theme-secondary);color:var(--theme-text-light);border-radius:var(--border-radius-md);width:100%;max-width:900px;max-height:95vh;box-shadow:0 1rem 3rem rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,0.1)}
-            .popup-header{background:linear-gradient(135deg, rgba(43,65,87,1) 0%, rgba(30,45,60,1) 100%);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1); flex-wrap: wrap;}
+            .popup-header{background:linear-gradient(135deg, rgba(43,65,87,1) 0%, rgba(30,45,60,1) 100%);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1);flex-wrap: wrap;}
             .popup-header-left { display: flex; align-items: center; gap: 15px; }
             .popup-header-right { display: flex; align-items: center; gap: 20px; }
             .popup-logo{height:40px;filter: drop-shadow(0 0 5px rgba(244,162,97,0.5));}
@@ -1032,12 +1074,10 @@
             .header-info-item svg { color: var(--theme-primary); }
             /* Adjusted for clock and version in one line */
             #live-clock-and-version {
-                direction: ltr;
-                font-family: monospace; /* For better readability of time/version */
+                direction: ltr; font-family: monospace; /* For better readability of time/version */
             }
             .bot-version-display {
-                font-size: 0.75rem;
-                color: rgba(255,255,255,0.6);
+                font-size: 0.75rem; color: rgba(255,255,255,0.6);
                 margin-left: 8px; /* Spacing between time and version */
             }
             .popup-close-btn{background:transparent;border:none;color:var(--theme-light-gray);font-size:28px;font-weight:700;cursor:pointer;padding:0 8px;line-height:1;transition:color .2s ease, transform .2s ease;}
