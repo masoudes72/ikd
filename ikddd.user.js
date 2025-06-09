@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         irankhodrodisel_v3.7.0 (Unified Settings)
+// @name         irankhodrodisel_v3.7.0
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-12.13
-// @description  Unified settings panel with collapsible mobile input and integrated captcha solver options.
+// @version      2025-06-12.14
+// @description  New animated trigger button with icon and gradient, matching the modern theme.
 // @author       You (Modified by AI)
 // @match        https://esale.ikd.ir/*
 // @icon         https://esale.ikd.ir/logo.png
@@ -34,7 +34,7 @@
         failedSubmitDelayMs: 5000,
         logoImageUrl: 'https://esale.ikd.ir/logo.png',
         closeIconText: '&times;',
-        triggerButtonText: '[BOT] فعال‌سازی ربات خرید',
+        triggerButtonText: 'فعال‌سازی ربات', // Shortened text
         popupSearchPlaceholder: 'نام دقیق محصول مورد نظر',
         startContinuousSearchText: 'شروع جستجوی مستمر',
         stopContinuousSearchText: 'توقف جستجو',
@@ -299,8 +299,25 @@
     // =====================================================================================
     function createTriggerButton() {
         if (document.getElementById('ikd-bot-trigger-btn')) return;
-        const b=document.createElement('button');b.id='ikd-bot-trigger-btn';b.textContent=CONFIG.triggerButtonText;document.body.appendChild(b);b.addEventListener('click',()=>{if(uiElements.mainPopup){uiElements.mainPopup.style.display='flex';resetPopupUI();}});
+        const b = document.createElement('button');
+        b.id = 'ikd-bot-trigger-btn';
+        b.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M12.17 9.53c2.307-2.592 3.278-4.684 3.641-6.218.21-.887.214-1.58.16-2.065a3.578 3.578 0 0 0-.108-.523.5.5 0 0 0-.048-.095.35.35 0 0 0-.06-.064.5.5 0 0 0-.098-.045c-.235-.073-.55-.13-.9-.13a.6.6 0 0 0-.25.038.5.5 0 0 0-.256.235c-.058.088-.12.193-.186.311.034.025.069.052.102.083.212.198.39.43.538.695.14.25.25.514.326.791.072.26.126.54.162.833.036.294.053.62.053.966.001.345-.016.68-.053.986-.034.277-.087.556-.16.837-.074.282-.182.564-.32.83-.134.258-.31.503-.51.732a.5.5 0 0 0-.023.029c-.19.224-.39.423-.604.59.043.023.086.046.128.069.135.073.28.132.43.176.15.044.31.075.472.092.164.017.33.02.498.006.17-.014.336-.04.5-.078.163-.038.324-.087.478-.145.155-.057.306-.126.45-.204.145-.078.285-.164.418-.258.134-.094.26-.2.38-.314.12-.114.23-.234.332-.36.103-.125.196-.258.28-.396.084-.138.16-.28.226-.425a.5.5 0 0 0-.12-.63Z"/>
+                <path d="M9.42 6.136c.215.216.215.564 0 .78l-3.32 3.32a.56.56 0 0 1-.779 0l-1.56-1.56a.56.56 0 0 1 0-.78l3.32-3.32a.56.56 0 0 1 .78 0l1.56 1.56Z"/>
+                <path d="M6.012 10.148.446 15.71c-.534.534-.075 1.485.656 1.485.434 0 .86-.19 1.14-.47l4.528-4.528a.56.56 0 0 1 .78 0l1.56 1.56a.56.56 0 0 1 0 .78l-4.528 4.528c-.28.28-.706.47-1.14.47-.73 0-1.19-.95-6.56-1.484a.5.5 0 0 1-.47-.66L5.232 10.93a.56.56 0 0 1 .78 0Z"/>
+            </svg>
+            <span>${CONFIG.triggerButtonText}</span>
+        `;
+        document.body.appendChild(b);
+        b.addEventListener('click', () => {
+            if (uiElements.mainPopup) {
+                uiElements.mainPopup.style.display = 'flex';
+                resetPopupUI();
+            }
+        });
     }
+
     function resetPopupUI() {
         if (isContinuousSearchingProduct) stopContinuousProductSearch();
         stopMainProcess();
@@ -862,7 +879,7 @@
     }
 
     // =====================================================================================
-    // --- � SCRIPT INITIALIZATION & ENTRY POINT ---
+    // --- 🚀 SCRIPT INITIALIZATION & ENTRY POINT ---
     // =====================================================================================
     function ensureUIExists() {
         if (!document.getElementById('ikd-bot-trigger-btn')) { createTriggerButton();
@@ -872,7 +889,7 @@
     }
 
     function initializeScript() {
-        log('info', `Script initializing (v3.7.0 Unified Settings).`);
+        log('info', `Script initializing (v3.8.0 New Trigger Button).`);
         selectedSolver = GM_getValue('selectedSolver', 'solver-2');
         mobileNumber = GM_getValue('savedMobileNumber', CONFIG.defaultMobileNumber);
         log('info', `حل‌کننده کپچای انتخاب شده: ${selectedSolver}`);
@@ -902,8 +919,43 @@
         GM_addStyle(`
             :root{--theme-primary:#f4a261;--theme-secondary:#2b4157;--theme-dark-gray:#212529;--theme-light-gray:#e0e0e0;--theme-text-light:#f8f9fa;--theme-text-dark:#212529;--success-bg:rgba(40,200,130,.1);--success-text:rgba(200,255,220,.9);--success-border: #2c8;--error-bg:rgba(255,60,60,.1);--error-text:rgba(255,200,200,.9);--error-border:#f44;--warn-bg:rgba(255,170,0,.1);--warn-text:rgba(255,220,180,.9);--warn-border:#fa0;--font-family:'IRANSans','Tahoma',sans-serif;--border-radius-sm:0.3rem;--border-radius-md:0.5rem;--box-shadow:0 .5rem 1rem rgba(0,0,0,.15)}
             body{font-family:var(--font-family)}
-            #ikd-bot-trigger-btn{position:fixed;bottom:25px;right:25px;padding:12px 22px;background-color:var(--theme-primary);color:var(--theme-text-light);border:none;border-radius:var(--border-radius-md);box-shadow:var(--box-shadow);font-size:16px;font-weight:500;cursor:pointer;z-index:9999;transition:background-color .2s ease,transform .2s ease}
-            #ikd-bot-trigger-btn:hover{background-color:#e08a4c;transform:translateY(-2px)}
+            @keyframes pulsing-glow {
+                0% { box-shadow: 0 0 5px var(--theme-primary), 0 0 10px var(--theme-primary); }
+                50% { box-shadow: 0 0 20px var(--theme-primary), 0 0 30px var(--theme-primary); }
+                100% { box-shadow: 0 0 5px var(--theme-primary), 0 0 10px var(--theme-primary); }
+            }
+            #ikd-bot-trigger-btn {
+                position: fixed;
+                bottom: 25px;
+                right: 25px;
+                padding: 12px 20px;
+                background: linear-gradient(145deg, #f4a261, #e76f51);
+                color: var(--theme-text-light);
+                border: none;
+                border-radius: 50px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                font-size: 16px;
+                font-weight: 500;
+                cursor: pointer;
+                z-index: 9999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                transition: all .3s ease;
+                animation: pulsing-glow 3s infinite;
+            }
+            #ikd-bot-trigger-btn:hover {
+                transform: translateY(-3px) scale(1.05);
+                box-shadow: 0 8px 25px rgba(244, 162, 97, 0.5);
+                animation-play-state: paused;
+            }
+            #ikd-bot-trigger-btn svg {
+                transition: transform .3s ease;
+            }
+            #ikd-bot-trigger-btn:hover svg {
+                transform: rotate(15deg);
+            }
             .popup{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:none;justify-content:center;align-items:center;z-index:10001;padding:20px;backdrop-filter:blur(3px);direction:rtl}
             .popup-content-wrapper{background-color:var(--theme-secondary);color:var(--theme-text-light);border-radius:var(--border-radius-md);width:100%;max-width:900px;max-height:95vh;box-shadow:0 1rem 3rem rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,0.1)}
             .popup-header{background:linear-gradient(135deg, rgba(43,65,87,1) 0%, rgba(30,45,60,1) 100%);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1); flex-wrap: wrap;}
