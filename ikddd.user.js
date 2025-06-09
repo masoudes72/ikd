@@ -863,7 +863,7 @@
     }
 
     async function handleUpdateCheck() {
-        const SCRIPT_URL = 'https://gist.github.com/masoudes72/0924b68b124266aa1eefd37070eb3a31/raw/1cbc6a86b055dcd8fd0f60f1c9c185301bf175f1/ikd-bot.user.js';
+        const SCRIPT_URL = 'https://github.com/masoudes72/ikd/raw/refs/heads/main/ikddd.user.js';
         displayMessage('درحال باز کردن صفحه نصب/به‌روزرسانی...', 'info');
         uiElements.updateButton.disabled = true;
         try {
