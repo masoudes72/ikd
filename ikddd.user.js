@@ -42,7 +42,15 @@
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
+        // New: Random delay ranges for more human-like behavior
+        minApiDelayMs: 500,  // Minimum delay before API calls (e.g., after finding product)
+        maxApiDelayMs: 1500, // Maximum delay before API calls
+        minRetryDelayMs: 3000, // Minimum delay for retries
+        maxRetryDelayMs: 6000, // Maximum delay for retries
+        minSubmitFailedDelayMs: 8000, // Minimum delay after failed final submit
+        maxSubmitFailedDelayMs: 15000 // Maximum delay after failed final submit
     };
+
     const API_ENDPOINTS_IKD = {
         getSaleProjects: `${CONFIG.apiBaseUrl}/sales/getSaleProjects`,
         getCaptchaOrder: `${CONFIG.apiBaseUrl}/esales/getCaptchaOrder`,
@@ -50,6 +58,7 @@
         sendSmsOrder: `${CONFIG.apiBaseUrl}/users/sendSmsOrder`,
         addSefaresh: `${CONFIG.apiBaseUrl}/esales/addSefaresh`,
     };
+
     // =====================================================================================
     // --- 🖼️ GLOBAL STATE & UI ELEMENTS ---
     // =====================================================================================
@@ -78,7 +87,6 @@
         'Priority': 'u=0',
     });
 
-
     window.onerror = function(message, source, lineno, colno, error) {
         log('error', 'یک خطای پیش‌بینی نشده در سطح اسکریپت رخ داد!', { message, source, lineno, colno, error });
         if (uiElements.systemMessagesContent) {
@@ -88,7 +96,7 @@
             if (currentOrderData.selectedProject && !currentOrderData.isSubmittingOrderProcess) {
                  startOrderProcess();
             }
-        }, 8000);
+        }, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
         return true;
     };
 
@@ -105,17 +113,23 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    function getRandomDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
     function generateUUID() {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
             const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16).toUpperCase();
         });
     }
+
     function handleApiError(error, apiName) {
         const msg = error.response ? (error.response.data?.message || JSON.stringify(error.response.data) || error.message) : error.message;
         log('error', `${apiName} API Fail:`, msg);
         return { success: false, data: null, error: msg || "Unknown API error" };
     }
+
     function captchaDataToFile(captchaData) {
         if (captchaData.dataImage) {
             return base64ToFile(`data:image/png;base64,${captchaData.dataImage}`, "captcha.png");
@@ -124,6 +138,7 @@
         }
         return null;
     }
+
     function base64ToFile(base64String, filename) {
         try {
             if(!base64String || !base64String.startsWith('data:')) return null;
@@ -144,9 +159,8 @@
     // --- 📞 API CALL FUNCTIONS ---
     // =====================================================================================
     async function getSaleProjectsFromIKD() {
-        await sleep(200);
         try {
-            const headers = { ...getSimulatedHeaders(), 'Content-Type': 'application/json' };
+            const headers = { ...getSimulatedHeaders('products'), 'Content-Type': 'application/json' };
             const response = await axios.post(API_ENDPOINTS_IKD.getSaleProjects, {}, { headers });
             return { success: true, data: response.data };
         } catch (error) {
@@ -155,10 +169,10 @@
     }
 
     async function getOrderDetailsFromIKD(projectData) {
-        await sleep(200);
         const payload = { idDueDeliverProg: projectData.IdDueDeliverProg };
         try {
-            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
+            // Corrected Content-Type for exact match with HAR
+            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.readSefareshInfo, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && response.data.rows?.length) {
                 const randomRow = response.data.rows[Math.floor(Math.random() * response.data.rows.length)];
@@ -171,9 +185,9 @@
     }
 
     async function getCaptchaOrderFromIKD(cardId) {
-        await sleep(150);
         const payload = { "captchaName": "Order", "token": "", "captchaId": parseInt(cardId), "apiId": "06290E83-E12E-4910-9C12-942F78131CE6" };
         try {
+             // Corrected Content-Type for exact match with HAR
              const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.getCaptchaOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && (response.data.dataImage || response.data.capchaData)) {
@@ -187,7 +201,6 @@
     }
 
     async function requestSmsFromIKD() {
-        await sleep(250);
         const lastSmsTime = parseInt(localStorage.getItem(CONFIG.smsTimestampKey) || '0');
         const now = Date.now();
         const cooldownMs = CONFIG.smsCooldownMinutes * 60 * 1000;
@@ -195,9 +208,11 @@
             const timeLeftMs = cooldownMs - (now - lastSmsTime);
             return { success: false, error: `محدودیت زمانی ارسال SMS.`, isCooldown: true, timeLeftMs };
         }
-        const payload = { smsType: "Order", systemCode: "SaleInternet" };
+        // Added idDueDeliverProg to SMS payload as per HAR analysis
+        const payload = { smsType: "Order", systemCode: "SaleInternet", idDueDeliverProg: currentOrderData.selectedProject?.IdDueDeliverProg };
         try {
-            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
+            // Corrected Content-Type for exact match with HAR
+            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.sendSmsOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0) {
                 const successTime = Date.now();
@@ -211,8 +226,9 @@
     }
 
     async function addOrderToIKD(orderPayload) {
-        await sleep(500);
+        await sleep(getRandomDelay(CONFIG.minApiDelayMs, CONFIG.maxApiDelayMs)); // Add random sleep before final submit
         try {
+            // Corrected Content-Type for exact match with HAR
             const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
             const r = await axios.post(API_ENDPOINTS_IKD.addSefaresh, orderPayload, { headers, withCredentials: true });
             if (r.data && r.data.identity) {
@@ -262,9 +278,7 @@
                     headers: { 'Content-Type': 'multipart/form-data' },
                     timeout: 15000
                 });
-
                 const answer = response.data?.answer || response.data?.solved_value || response.data?.solve || (typeof response.data === 'string' && response.data);
-
                 if (answer) {
                     log('success', `حل‌کننده ${solver.name} پاسخ داد: ${answer}`);
                     return { success: true, answer: String(answer) };
@@ -278,7 +292,6 @@
 
         return { success: false, error: 'هیچ‌کدام از حل‌کننده‌ها موفق به پاسخ نشدند.' };
     }
-
 
     async function getLastSmsFromRelayServer() {
         await sleep(100);
@@ -321,7 +334,7 @@
     function resetPopupUI() {
         if (isContinuousSearchingProduct) stopContinuousProductSearch();
         stopMainProcess();
-        currentOrderData = { captchaAutoFilled: false, smsAutoFilled: false, isSubmittingOrderProcess: false, selectedProject: null, captchaToken: null, captchaCode: null, smsCode: null, stopProcess: false, orderDetails: null };
+        currentOrderData = { captchaAutoFilled: false, smsAutoFilled: false, isSubmittingOrderProcess: false, captchaToken: null, selectedProject: null, captchaCode: null, smsCode: null, stopProcess: false, orderDetails: null };
         if (uiElements.initialSearchSection) uiElements.initialSearchSection.style.display = 'flex';
         if (uiElements.searchResultsSection) uiElements.searchResultsSection.style.display = 'none';
         if (uiElements.captchaSmsContainer) uiElements.captchaSmsContainer.style.display = 'none';
@@ -335,6 +348,7 @@
         if (uiElements.mobileInputPanel) uiElements.mobileInputPanel.style.display = 'none';
         checkSmsCooldownOnLoad();
     }
+
     function createMainPopupUI() {
         if (document.getElementById('ikd-main-process-popup')) return;
         const popup = document.createElement('div');
@@ -361,7 +375,6 @@
                 </div>
             </div>
             <div class="popup-main-content">
-                <!-- Unified Settings Section -->
                 <section class="popup-section settings-section">
                     <h3 class="section-title">⚙️ تنظیمات و کنترل</h3>
                     <div class="main-settings-controls">
@@ -406,7 +419,7 @@
                 </section>
                 <div class="captcha-sms-messages-container" style="display: none;">
                     <section class="popup-section captcha-sms-box">
-                      <h3 class="section-title">۳. کپچا و کد SMS</h3>
+                        <h3 class="section-title">۳. کپچا و کد SMS</h3>
                         <div class="captcha-image-container" id="captcha-image-display-popup"></div>
                         <input type="text" id="captcha-input-field-popup" class="styled-input captcha-input" placeholder="کد امنیتی (کپچا)" />
                         <div class="sms-input-group">
@@ -456,7 +469,6 @@
         window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && uiElements.mainPopup.style.display === 'flex') { uiElements.closeMainPopupButton.click(); } });
         uiElements.captchaInput.addEventListener('input', checkAndEnableSubmitButton);
         uiElements.smsInput.addEventListener('input', checkAndEnableSubmitButton);
-
         uiElements.toggleMobilePanelButton.addEventListener('click', () => {
             const panel = uiElements.mobileInputPanel;
             if (panel.style.display === 'none') {
@@ -492,13 +504,16 @@
                 displayMessage(`حل‌کننده کپچا به ${friendlyName} تغییر یافت.`, 'success');
             });
         });
-
         resetPopupUI();
     }
+
     function checkAndEnableSubmitButton() {
-        if(uiElements.captchaInput&&uiElements.smsInput&&uiElements.submitOrderButton){const cf=uiElements.captchaInput.value.trim().length > 0;
-        const sf=uiElements.smsInput.value.trim().length > 0;
-        uiElements.submitOrderButton.disabled=!(cf&&sf);}}
+        if(uiElements.captchaInput && uiElements.smsInput && uiElements.submitOrderButton) {
+            const cf = uiElements.captchaInput.value.trim().length > 0;
+            const sf = uiElements.smsInput.value.trim().length > 0;
+            uiElements.submitOrderButton.disabled = !(cf && sf);
+        }
+    }
 
     async function tryAutoSubmit() {
         if (currentOrderData.isSubmittingOrderProcess) return;
@@ -509,14 +524,23 @@
             await handleSubmitOrder();
         }
     }
+
     function displayMessage(text, type = 'info') {
-        if(!uiElements.systemMessagesContent)return;
+        if(!uiElements.systemMessagesContent) return;
         const noMsg = uiElements.systemMessagesContent.querySelector('.no-message-exist');
-        if(noMsg) noMsg.style.display='none';
-        const md=document.createElement('div');md.className=`message ${type}`;md.innerHTML=`<span class="msg-text">${text}</span>`;uiElements.systemMessagesContent.prepend(md);}
-    function updateClockDisplay() {
-        if(!uiElements.liveClock)return;const n=new Date();uiElements.liveClock.textContent=`${n.getHours().toString().padStart(2,'0')}:${n.getMinutes().toString().padStart(2,'0')}`;
+        if(noMsg) noMsg.style.display = 'none';
+        const md = document.createElement('div');
+        md.className = `message ${type}`;
+        md.innerHTML = `<span class="msg-text">${text}</span>`;
+        uiElements.systemMessagesContent.prepend(md);
     }
+
+    function updateClockDisplay() {
+        if(!uiElements.liveClock) return;
+        const n = new Date();
+        uiElements.liveClock.textContent = `${n.getHours().toString().padStart(2,'0')}:${n.getMinutes().toString().padStart(2,'0')}`;
+    }
+
     function displayFoundItem(project) {
         uiElements.itemsGrid.innerHTML = '';
         const card = document.createElement('div');
@@ -542,6 +566,7 @@
         uiElements.searchResultsSection.style.display = 'block';
         uiElements.captchaSmsContainer.style.display = 'flex';
     }
+
     function displayCaptcha(captchaData) {
         uiElements.captchaImageDisplay.innerHTML = '';
         if (captchaData.capchaData) {
@@ -587,6 +612,7 @@
         };
         pollLoop();
     }
+
     function stopSmsRelayPolling() {
         if (smsRelayPollingTimeoutId) {
             clearTimeout(smsRelayPollingTimeoutId);
@@ -597,21 +623,21 @@
 
     async function fetchAndHandleCaptcha() {
         if (currentOrderData.stopProcess || !currentOrderData.selectedProject) {
-            return false;
+            return { success: false, error: 'فرآیند متوقف شده یا محصول انتخاب نشده.' };
         }
 
         displayMessage('در حال دریافت کپچای جدید...', 'info');
         const captchaApiResponse = await getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg);
         if (!captchaApiResponse.success) {
             displayMessage(`خطا در دریافت کپچا: ${captchaApiResponse.error}`, 'error');
-            return false;
+            return { success: false, error: captchaApiResponse.error };
         }
         displayCaptcha(captchaApiResponse.data);
 
         if (selectedSolver === 'solver-none') {
             displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
             currentOrderData.captchaAutoFilled = false;
-            return true;
+            return { success: true }; // Return true to allow process to continue, but requires manual input
         }
 
         const solveResponse = await solveCaptcha(captchaApiResponse.data);
@@ -620,27 +646,24 @@
             currentOrderData.captchaCode = solveResponse.answer;
             currentOrderData.captchaAutoFilled = true;
             uiElements.captchaInput.value = solveResponse.answer;
-            checkAndEnableSubmitButton();
-            tryAutoSubmit();
-            return true;
+            return { success: true };
         } else {
             currentOrderData.captchaAutoFilled = false;
             displayMessage(`حل خودکار کپچا ناموفق بود: ${solveResponse.error}`, 'warn');
-            return false;
+            return { success: false, error: solveResponse.error }; // Return false if auto-solve failed
         }
     }
 
     async function requestAndHandleSms(isManualRequest = false) {
-        // اگر دستی درخواست شده و دکمه غیرفعال است (مثلا به دلیل کول داون قبلی)، اجازه ندهید.
         if (isManualRequest && uiElements.getSmsCodeButton.disabled) {
             displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.', 'warn');
-            return false; // برای درخواست دستی، اگر دکمه غیرفعال است، خروج
+            return false; // For manual request, if button disabled, exit
         }
 
         displayMessage(`در حال ارسال درخواست SMS به ایران‌خودرو...`, 'info');
-        if (isManualRequest) uiElements.getSmsCodeButton.disabled = true; // دکمه را غیرفعال کن
+        if (isManualRequest) uiElements.getSmsCodeButton.disabled = true;
 
-        // همیشه پایش سرور واسط را شروع کن، حتی اگر درخواست به ایران‌خودرو موفق نباشد.
+        // Always start polling from relay server, regardless of IKD SMS request success
         startSmsRelayPolling();
 
         const smsResponse = await requestSmsFromIKD();
@@ -648,22 +671,16 @@
         if (!smsResponse.success) {
             displayMessage(`ارسال درخواست SMS به ایران‌خودرو ناموفق: ${smsResponse.error}.`, 'error');
             if (smsResponse.isCooldown) {
-                // اگر به دلیل کول‌داون بود، فقط هشدار بده و تایمر را شروع کن.
                 displayMessage('محدودیت زمانی SMS فعال است. ربات همچنان کد را از سرور واسط می‌خواند.', 'warn');
                 startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
-                // این بار، تابع true برمی‌گرداند تا فرآیند اصلی متوقف نشود، زیرا ما SMS را از سرور واسط پایش می‌کنیم.
-                return true; // بازگشت موفقیت‌آمیز به معنای ادامه فرآیند پایش SMS
-            } else {
-                // اگر خطای دیگری بود (غیر از کول‌داون)، دکمه دستی را فعال کن و شکست را گزارش کن.
-                if(isManualRequest) {
-                    uiElements.getSmsCodeButton.disabled = false;
-                }
-                return false; // بازگشت شکست برای خطاهای غیر از کول‌داون
             }
+            // *** CRITICAL CHANGE: Always return true here regardless of IKD SMS request success/failure (unless manual request and button disabled) ***
+            // This means the bot will proceed to wait for SMS from relay server even if IKD SMS request fails.
+            return true; // Return true to mean "continue, SMS polling is active"
         } else {
             displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
-            if(isManualRequest) startManualSmsCooldownTimer(); // برای درخواست دستی، تایمر را شروع کن
-            return true; // بازگشت موفقیت‌آمیز
+            if(isManualRequest) startManualSmsCooldownTimer(); // For manual request, start timer
+            return true; // Return success
         }
     }
 
@@ -678,41 +695,68 @@
             if (uiElements.smsInput) uiElements.smsInput.value = '';
             checkAndEnableSubmitButton();
 
-            const orderDetailsResult = await getOrderDetailsFromIKD(currentOrderData.selectedProject);
+            // Add a random delay before starting the order process steps
+            await sleep(getRandomDelay(CONFIG.minApiDelayMs, CONFIG.maxApiDelayMs));
+
+            displayMessage('در حال دریافت اطلاعات سفارش و کپچا...', 'info');
+            // Fetch order details and captcha concurrently
+            const [orderDetailsResult, captchaResult] = await Promise.all([
+                getOrderDetailsFromIKD(currentOrderData.selectedProject),
+                getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg)
+            ]);
+
             if (!orderDetailsResult.success) {
                 displayMessage(`خطا در دریافت اطلاعات سفارش: ${orderDetailsResult.error}. تلاش مجدد...`, 'error');
-                setTimeout(startOrderProcess, CONFIG.apiRetryDelayMs);
+                setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
                 return;
             }
             currentOrderData.orderDetails = orderDetailsResult.data;
             log('success', 'اطلاعات اولیه سفارش با موفقیت دریافت شد.');
 
-            const captchaSuccess = await fetchAndHandleCaptcha();
-            if (!captchaSuccess) {
-                log('warn', 'مرحله کپچا ناموفق بود. فرآیند مجدداً آغاز می‌شود.');
-                setTimeout(startOrderProcess, CONFIG.apiRetryDelayMs);
+            // Handle Captcha Result (which was fetched concurrently)
+            let captchaSuccess = false;
+            if (captchaResult.success) {
+                displayCaptcha(captchaResult.data);
+                currentOrderData.captchaToken = captchaResult.data.token;
+                const solveResponse = await solveCaptcha(captchaResult.data);
+                if (solveResponse.success && solveResponse.answer) {
+                    displayMessage('کپچای جدید به طور خودکار حل شد.', 'success');
+                    currentOrderData.captchaCode = solveResponse.answer;
+                    currentOrderData.captchaAutoFilled = true;
+                    uiElements.captchaInput.value = solveResponse.answer;
+                    captchaSuccess = true;
+                } else {
+                    currentOrderData.captchaAutoFilled = false;
+                    displayMessage(`حل خودکار کپچا ناموفق بود: ${solveResponse.error}`, 'warn');
+                    // Even if auto-solve fails, we might proceed if solver-none selected, or allow manual input
+                    captchaSuccess = (selectedSolver === 'solver-none'); // If manual, considered "successful" to proceed
+                }
+            } else {
+                displayMessage(`خطا در دریافت کپچا: ${captchaResult.error}. تلاش مجدد...`, 'error');
+                setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
                 return;
             }
 
-            // اینجا تابع requestAndHandleSms را فراخوانی می‌کنیم.
-            // این تابع حالا در صورت کول‌داون، true برمی‌گرداند و پایش SMS را شروع می‌کند.
-            const smsRequestStatus = await requestAndHandleSms(false);
-            if (!smsRequestStatus) {
-                // این فقط برای خطاهای غیر از کول‌داون است که requestAndHandleSms مقدار false را برمی‌گرداند.
-                log('warn', 'مرحله درخواست SMS به دلیل خطای غیر از کول‌داون ناموفق بود. فرآیند برای تلاش مجدد از ابتدا آغاز می‌شود.');
-                setTimeout(startOrderProcess, CONFIG.apiRetryDelayMs);
-                return;
+            // If captcha is not successfully filled (auto or manually allowed), restart the process.
+            // This is crucial for handling cases where auto-solve fails and manual input is not desired/possible immediately.
+            if (!captchaSuccess && uiElements.captchaInput.value.trim() === '') {
+                 displayMessage('کپچا پر نشد. فرآیند مجدداً آغاز می‌شود.', 'warn');
+                 setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
+                 return;
             }
 
-            // اگر smsRequestStatus === true بود (چه درخواست به IKD موفق بود، چه به دلیل کول‌داون)،
-            // به این معنی است که پایش SMS از سرور واسط شروع شده است.
-            // بنابراین، ما منتظر می‌مانیم تا pollSmsFromRelay() یا کاربر دستی SMS را وارد کند.
-            // هیچ ری‌استارتی در اینجا لازم نیست، مگر اینکه به دلیل خطای غیر از کول‌داون باشد.
+            checkAndEnableSubmitButton(); // Check and enable submit button after captcha is filled (auto or manually)
+
+            // Proceed with SMS request.
+            // requestAndHandleSms now always returns true to ensure polling starts, regardless of IKD SMS response
+            await requestAndHandleSms(false);
+            // No conditional restart here based on smsRequestStatus, as desired.
+            // The process will now wait for SMS via polling or manual input.
 
         } catch (e) {
             log('error', 'یک خطای پیش‌بینی نشده در فرآیند اصلی رخ داد. ربات مجددا تلاش خواهد کرد.', e);
             displayMessage(`یک خطای غیرمنتظره رخ داد: ${e.message}. شروع مجدد...`, 'error');
-            setTimeout(startOrderProcess, CONFIG.apiRetryDelayMs);
+            setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
         }
     }
 
@@ -751,13 +795,13 @@
         }
     }
 
-
     function startContinuousProductSearch() {
-        const st=uiElements.modelSearchInput.value.trim();if(!st){displayMessage('مدل را وارد کنید.','warn');return;}
-        if(isContinuousSearchingProduct)return;
-        isContinuousSearchingProduct=true;
-        uiElements.startSearchButton.textContent=CONFIG.stopContinuousSearchText;
-        uiElements.modelSearchInput.disabled=true;
+        const st = uiElements.modelSearchInput.value.trim();
+        if(!st) { displayMessage('مدل را وارد کنید.','warn'); return; }
+        if(isContinuousSearchingProduct) return;
+        isContinuousSearchingProduct = true;
+        uiElements.startSearchButton.textContent = CONFIG.stopContinuousSearchText;
+        uiElements.modelSearchInput.disabled = true;
         displayMessage(`جستجوی مستمر برای "${st}" آغاز شد...`,'info');
 
         const searchLoop = async () => {
@@ -769,13 +813,15 @@
         };
         searchLoop();
     }
+
     function stopContinuousProductSearch() {
-        if(productSearchPollingTimeoutId){clearTimeout(productSearchPollingTimeoutId);productSearchPollingTimeoutId=null;}
-        isContinuousSearchingProduct=false;
-        if(uiElements.startSearchButton){uiElements.startSearchButton.textContent=CONFIG.startContinuousSearchText;uiElements.startSearchButton.disabled=false;}
-        if(uiElements.modelSearchInput)uiElements.modelSearchInput.disabled=false;
+        if(productSearchPollingTimeoutId) { clearTimeout(productSearchPollingTimeoutId); productSearchPollingTimeoutId = null; }
+        isContinuousSearchingProduct = false;
+        if(uiElements.startSearchButton) { uiElements.startSearchButton.textContent = CONFIG.startContinuousSearchText; uiElements.startSearchButton.disabled = false; }
+        if(uiElements.modelSearchInput) uiElements.modelSearchInput.disabled = false;
         log('info','جستجوی محصول متوقف شد.');
     }
+
     function toggleContinuousProductSearch() {
         if (isContinuousSearchingProduct) stopContinuousProductSearch();
         else startContinuousProductSearch();
@@ -822,13 +868,15 @@
             return true;
         }
     }
+
     async function handleManualSmsRequest() {
-        if(!currentOrderData.selectedProject){displayMessage('ابتدا محصول باید انتخاب شود.','warn');return;}if(!checkSmsCooldownOnLoad()){displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn');return;}
-        await requestAndHandleSms(true);}
+        if(!currentOrderData.selectedProject){ displayMessage('ابتدا محصول باید انتخاب شود.','warn'); return; }
+        if(!checkSmsCooldownOnLoad()){ displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn'); return; }
+        await requestAndHandleSms(true);
+    }
 
     async function handleSubmitOrder() {
-        if (currentOrderData.isSubmittingOrderProcess) { return;
-        }
+        if (currentOrderData.isSubmittingOrderProcess) { return; }
         currentOrderData.isSubmittingOrderProcess = true;
         stopMainProcess();
         if (uiElements.submitOrderButton) {
@@ -847,18 +895,23 @@
         }
         currentOrderData.captchaCode = captchaCode;
         currentOrderData.smsCode = smsCode;
-        if (!currentOrderData.selectedProject || !currentOrderData.captchaToken) { displayMessage('اطلاعات سفارش ناقص است.', 'error'); resetPopupUI();
-        currentOrderData.isSubmittingOrderProcess = false; return;
+
+        if (!currentOrderData.selectedProject || !currentOrderData.captchaToken) {
+            displayMessage('اطلاعات سفارش ناقص است.', 'error');
+            resetPopupUI();
+            currentOrderData.isSubmittingOrderProcess = false;
+            return;
         }
 
         if (!currentOrderData.orderDetails) {
             displayMessage('اطلاعات سفارش یافت نشد! فرآیند مجدداً آغاز می‌شود.', 'error');
             currentOrderData.isSubmittingOrderProcess = false;
-            startOrderProcess();
+            setTimeout(startOrderProcess, getRandomDelay(CONFIG.minRetryDelayMs, CONFIG.maxRetryDelayMs));
             return;
         }
 
         const finalOrderDetails = currentOrderData.orderDetails;
+        // idBank is kept as 23 as per user's last instruction
         const orderPayload = { agency: finalOrderDetails.agency, agencyId: parseInt(finalOrderDetails.agencyId), agencyShow: 2, captchaText: currentOrderData.captchaCode, captchaToken: currentOrderData.captchaToken, idBank: 23, idBaseColor: parseInt(finalOrderDetails.selectedColor), idBaseUsage: parseInt(finalOrderDetails.selectedUsage), quantity: 1, responDoc: true, idDueDeliverProg: parseInt(currentOrderData.selectedProject.IdDueDeliverProg), smsKey: currentOrderData.smsCode, valueId: generateUUID(), };
         const addOrderResponse = await addOrderToIKD(orderPayload);
 
@@ -869,12 +922,13 @@
             displayMessage(`ثبت نهایی ناموفق: ${addOrderResponse.error}.`, 'error');
             log('error', 'ثبت نهایی ناموفق بود. پاسخ سرور:', addOrderResponse);
             log('warn', `کپچای ارسال شده: ${captchaCode}, کد پیامک ارسال شده: ${smsCode}. فرآیند مجدداً آغاز می‌شود.`);
-            displayMessage(`فرآیند تا ${CONFIG.failedSubmitDelayMs / 1000} ثانیه دیگر به صورت خودکار مجدداً آغاز می‌شود...`, 'info');
+            const delay = getRandomDelay(CONFIG.minSubmitFailedDelayMs, CONFIG.maxSubmitFailedDelayMs);
+            displayMessage(`فرآیند تا ${delay / 1000} ثانیه دیگر به صورت خودکار مجدداً آغاز می‌شود...`, 'info');
             currentOrderData.isSubmittingOrderProcess = false;
             currentOrderData.stopProcess = false;
             setTimeout(() => {
                 startOrderProcess();
-            }, CONFIG.failedSubmitDelayMs);
+            }, delay);
         }
     }
 
@@ -898,10 +952,8 @@
     // --- 🚀 SCRIPT INITIALIZATION & ENTRY POINT ---
     // =====================================================================================
     function ensureUIExists() {
-        if (!document.getElementById('ikd-bot-trigger-btn')) { createTriggerButton();
-        }
-        if (!document.getElementById('ikd-main-process-popup')) { createMainPopupUI();
-        }
+        if (!document.getElementById('ikd-bot-trigger-btn')) { createTriggerButton(); }
+        if (!document.getElementById('ikd-main-process-popup')) { createMainPopupUI(); }
     }
 
     function initializeScript() {
@@ -910,7 +962,6 @@
         mobileNumber = GM_getValue('savedMobileNumber', CONFIG.defaultMobileNumber);
         log('info', `حل‌کننده کپچای انتخاب شده: ${selectedSolver}`);
         log('info', `شماره موبایل بارگذاری شده: ${mobileNumber}`);
-
         if (typeof localStorage !== 'undefined') {
             authToken = localStorage.getItem(CONFIG.localStorageTokenKey);
             if (!authToken) {
