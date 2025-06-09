@@ -920,6 +920,10 @@
             displayMessage(`فرآیند تا ${delay / 1000} ثانیه دیگر به صورت خودکار مجدداً آغاز می‌شود...`, 'info');
             currentOrderData.isSubmittingOrderProcess = false;
             currentOrderData.stopProcess = false;
+            if (uiElements.submitOrderButton) {
+                uiElements.submitOrderButton.disabled = false; // Enable the button
+                uiElements.submitOrderButton.textContent = 'ثبت نهایی سفارش'; // Reset text
+            }
             setTimeout(() => {
                 startOrderProcess();
             }, delay);
