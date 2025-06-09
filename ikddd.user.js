@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         irankhodrodisel
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-12.17 // نسخه را برای نشان دادن تغییر به‌روز کردم
-// @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha.
+// @version      2025-06-12.23
+// @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha. Improved mobile responsiveness and collapsible settings, and refined product search logic with advanced text normalization and selection.
 // @author       Masoud
 // @match        https://esale.ikd.ir/*
 // @icon         https://esale.ikd.ir/logo.png
@@ -46,7 +46,7 @@
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
-        botVersion: 'v4.0.1', // نسخه به‌روزرسانی شده
+        botVersion: 'v4.1.3', // نسخه به‌روزرسانی شده
 
         // NEW: مجموعه تنظیمات برای حالت حل خودکار (Auto Solver)
         autoSolverConfig: {
@@ -133,6 +133,32 @@
     // =====================================================================================
     // --- 🛠️ UTILITY FUNCTIONS ---
     // =====================================================================================
+
+    /**
+     * Normalizes text for search by converting to lowercase, handling Persian characters,
+     * replacing ZWNJ with space, and removing specific non-alphanumeric characters.
+     * @param {string} text The input text to normalize.
+     * @returns {string} The normalized text.
+     */
+    function normalizeTextForSearch(text) {
+        if (!text) return '';
+        return text
+            .toString() // Ensure it's a string
+            .toLowerCase()
+            // Replace specific Persian characters with their common counterparts
+            .replace(/ی/g, 'ي') // Replace Persian yeh with Arabic yeh
+            .replace(/ك/g, 'ک') // Replace Persian kaf with Arabic kaf
+            // Replace zero-width non-joiner (نیم‌فاصله) with a space to ensure word separation
+            .replace(/\u200C/g, ' ')
+            // Remove non-alphanumeric characters (keep letters, numbers, spaces)
+            // \p{L} for all Unicode letters, \p{N} for all Unicode numbers
+            .replace(/[^\p{L}\p{N}\s]/gu, '')
+            // Replace multiple spaces with a single space
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+
     function log(type, message, data) {
         const prefix = { info: '[INFO]', error: '[ERROR]', success: '[موفق]', warn: '[هشدار]', debug: '[DEBUG]' }[type] || '[LOG]';
         if (data !== undefined) console[type === 'error' ? 'error' : 'log'](`${prefix} ${message}`, data);
@@ -201,7 +227,7 @@
     async function getOrderDetailsFromIKD(projectData) {
         const payload = { idDueDeliverProg: projectData.IdDueDeliverProg };
         try {
-            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
+            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.readSefareshInfo, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && response.data.rows?.length) {
                 const randomRow = response.data.rows[Math.floor(Math.random() * response.data.rows.length)];
@@ -216,7 +242,7 @@
     async function getCaptchaOrderFromIKD(cardId) {
         const payload = { "captchaName": "Order", "token": "", "captchaId": parseInt(cardId), "apiId": "06290E83-E12E-4910-9C12-942F78131CE6" };
         try {
-             const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
+            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.getCaptchaOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && (response.data.dataImage || response.data.capchaData)) {
                 return { success: true, data: response.data };
@@ -387,6 +413,18 @@
         // Hide mobile input panel on reset
         if (uiElements.mobileInputPanel) uiElements.mobileInputPanel.style.display = 'none';
         checkSmsCooldownOnLoad();
+
+        // NEW: Reset collapsible settings state based on mobile view
+        if (uiElements.settingsContent && uiElements.toggleSettingsButton) {
+            const isMobileView = window.matchMedia("(max-width: 991px)").matches;
+            if (isMobileView) {
+                uiElements.settingsContent.style.display = 'none'; // Hide on mobile
+                uiElements.toggleSettingsButton.classList.remove('open');
+            } else {
+                uiElements.settingsContent.style.display = 'block'; // Show on desktop
+                uiElements.toggleSettingsButton.classList.add('open'); // Add open class for desktop (no icon needed)
+            }
+        }
     }
 
     function createMainPopupUI() {
@@ -416,38 +454,44 @@
             </div>
             <div class="popup-main-content">
                 <section class="popup-section settings-section">
-                    <h3 class="section-title">⚙️ تنظیمات و کنترل</h3>
-                    <div class="main-settings-controls">
-                        <button class="action-btn secondary-btn" id="toggle-mobile-panel-btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-phone-vibrate" viewBox="0 0 16 16"><path d="M10 3a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4zM6 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6z"/><path d="M8 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM1.586 6.414a.5.5 0 0 1 0 .708L.293 8.414a.5.5 0 0 1-.707-.707l1.293-1.293a.5.5 0 0 1 .707 0zm13.52.707a.5.5 0 0 1-.707 0l-1.293-1.293a.5.5 0 0 1 0-.708l1.293-1.293a.5.5 0 0 1 .707.707L15.106 7.12zM2 9.5a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1H2.5a.5.5 0 0 1-.5-.5zm12 0a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1h-.5a.5.5 0 0 1-.5-.5z"/></svg>
-                            <span>شماره موبایل</span>
-                        </button>
-                        <button class="action-btn secondary-btn" id="check-update-btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-cloud-arrow-down-fill" viewBox="0 0 16 16"><path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 6.854-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 9.293V5.5a.5.5 0 0 1 1 0v3.793l1.146-1.147a.5.5 0 0 1 .708.708z"/></svg>
-                            <span>${CONFIG.updateButtonText}</span>
-                        </button>
-                    </div>
-                    <div class="settings-panel" id="mobile-input-panel" style="display: none;">
-                        <label>شماره موبایل برای دریافت SMS را وارد کنید:</label>
-                        <div class="settings-input-group">
-                             <input type="text" id="mobile-number-input" class="styled-input" value="${mobileNumber}" />
-                             <button class="action-btn secondary-btn" id="save-mobile-btn">${CONFIG.saveMobileButtonText}</button>
+                    <button class="section-title collapsible-toggle" id="toggle-settings-btn">
+                        ⚙️ تنظیمات و کنترل
+                        <span class="collapse-icon"></span>
+                    </button>
+                    <div class="collapsible-content" id="settings-content">
+                        <div class="main-settings-controls">
+                            <button class="action-btn secondary-btn" id="toggle-mobile-panel-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-phone-vibrate" viewBox="0 0 16 16"><path d="M10 3a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4zM6 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6z"/><path d="M8 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM1.586 6.414a.5.5 0 0 1 0 .708L.293 8.414a.5.5 0 0 1-.707-.707l1.293-1.293a.5.5 0 0 1 .707 0zm13.52.707a.5.5 0 0 1-.707 0l-1.293-1.293a.5.5 0 0 1 0-.708l1.293-1.293a.5.5 0 0 1 .707.707L15.106 7.12zM2 9.5a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1H2.5a.5.5 0 0 1-.5-.5zm12 0a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1h-.5a.5.5 0 0 1-.5-.5z"/></svg>
+                                <span>شماره موبایل</span>
+                            </button>
+                            <button class="action-btn secondary-btn" id="check-update-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-cloud-arrow-down-fill" viewBox="0 0 16 16"><path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 6.854-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 9.293V5.5a.5.5 0 0 1 1 0v3.793l1.146-1.147a.5.5 0 0 1 .708.708z"/></svg>
+                                <span>${CONFIG.updateButtonText}</span>
+                            </button>
+                        </div>
+                        <div class="settings-panel" id="mobile-input-panel" style="display: none;">
+                            <label>شماره موبایل برای دریافت SMS را وارد کنید:</label>
+                            <div class="settings-input-group">
+                                 <input type="text" id="mobile-number-input" class="styled-input" value="${mobileNumber}" />
+                                 <button class="action-btn secondary-btn" id="save-mobile-btn">${CONFIG.saveMobileButtonText}</button>
+                            </div>
+                        </div>
+                        <div class="solver-options-panel">
+                            <label class="panel-label">انتخاب حل‌کننده کپچا:</label>
+                            <div class="settings-options" id="captcha-solver-settings">
+                                <label><input type="radio" name="captcha-solver-option" value="solver-none"> غیرفعال</label>
+                                <label><input type="radio" name="captcha-solver-option" value="solver-1"> عددی</label>
+                                <label><input type="radio" name="captcha-solver-option" value="solver-2"> متنی</label>
+                            </div>
                         </div>
                     </div>
-                    <div class="solver-options-panel">
-                        <label class="panel-label">انتخاب حل‌کننده کپچا:</label>
-                        <div class="settings-options" id="captcha-solver-settings">
-                            <label><input type="radio" name="captcha-solver-option" value="solver-none"> غیرفعال</label>
-                            <label><input type="radio" name="captcha-solver-option" value="solver-1"> عددی</label>
-                            <label><input type="radio" name="captcha-solver-option" value="solver-2"> متنی</label>
-                        </div>
-                    </section>
+                </section>
                 <section class="popup-section initial-search-section">
                     <h3 class="section-title">۱. جستجوی خودرو</h3>
                     <div class="search-input-group">
                         <input type="text" id="model-search-input-popup" class="styled-input" placeholder="${CONFIG.popupSearchPlaceholder}" />
                         <button class="action-btn primary-btn" id="start-search-btn-popup">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
                             <span>${CONFIG.startContinuousSearchText}</span>
                         </button>
                     </div>
@@ -498,6 +542,9 @@
             mobileNumberInput: document.getElementById('mobile-number-input'),
             saveMobileButton: document.getElementById('save-mobile-btn'),
             updateButton: document.getElementById('check-update-btn'),
+            // NEW: Collapsible elements
+            toggleSettingsButton: document.getElementById('toggle-settings-btn'),
+            settingsContent: document.getElementById('settings-content'),
         };
         uiElements.startSearchButton.addEventListener('click', toggleContinuousProductSearch);
         uiElements.getSmsCodeButton.addEventListener('click', handleManualSmsRequest);
@@ -523,7 +570,8 @@
                 GM_setValue('savedMobileNumber', mobileNumber);
                 uiElements.userDisplayName.textContent = mobileNumber;
                 displayMessage(`شماره موبایل به ${mobileNumber} تغییر یافت و ذخیره شد.`, 'success');
-                resetPopupUI(); // Reset to hide the panel after saving
+                // نیازی به resetPopupUI کامل نیست، فقط پنل موبایل را پنهان کنید
+                uiElements.mobileInputPanel.style.display = 'none';
             } else {
                 displayMessage('لطفاً یک شماره موبایل ۱۱ رقمی صحیح وارد کنید.', 'error');
             }
@@ -542,7 +590,20 @@
                 displayMessage(`حل‌کننده کپچا به ${friendlyName} تغییر یافت.`, 'success');
             });
         });
-        resetPopupUI();
+
+        // NEW: Event listener for collapsible settings
+        uiElements.toggleSettingsButton.addEventListener('click', () => {
+            if (uiElements.settingsContent.style.display === 'none') {
+                uiElements.settingsContent.style.display = 'block';
+                uiElements.toggleSettingsButton.classList.add('open');
+            } else {
+                uiElements.settingsContent.style.display = 'none';
+                uiElements.toggleSettingsButton.classList.remove('open');
+            }
+        });
+
+        // Initial state for collapsible settings based on device
+        resetPopupUI(); // این تابع قبلاً حالت اولیه را تنظیم می‌کرد، حالا شامل بخش collapsible هم می‌شود.
     }
 
     function checkAndEnableSubmitButton() {
@@ -609,9 +670,10 @@
         // NEW: Scroll to captcha container
         setTimeout(() => {
             if (uiElements.captchaSmsContainer) {
-                uiElements.captchaSmsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const offset = uiElements.captchaSmsContainer.getBoundingClientRect().top + uiElements.mainPopup.scrollTop - 20; // 20px برای پدینگ بالا
+                uiElements.mainPopup.scrollTo({ top: offset, behavior: 'smooth' });
             }
-        }, 100); // تأخیر کوتاه برای اطمینان از رندر شدن عناصر
+        }, 100); // تأخیر کوتاه برای اطمینان از رندر شدن عناصر و نمایش پاپ‌آپ
     }
 
     function displayCaptcha(captchaData) {
@@ -811,7 +873,49 @@
             if (!isContinuousSearchingProduct) return;
             if (projectsResponse.success && projectsResponse.data?.saleProjects?.length > 0) {
                 const saleProjects = projectsResponse.data.saleProjects;
-                const foundProject = saleProjects.find(p => (p.KhodroTitle + " " + p.Title).toLowerCase().includes(searchTerm.toLowerCase()));
+
+                // Normalize the search term first
+                const normalizedSearchTerm = normalizeTextForSearch(searchTerm);
+                // Split normalized search term into individual words
+                const searchTermsArray = normalizedSearchTerm.split(' ').filter(s => s.length > 0);
+
+                const foundCandidates = saleProjects.filter(p => {
+                    const normalizedKhodroTitle = normalizeTextForSearch(p.KhodroTitle);
+                    const normalizedTitle = normalizeTextForSearch(p.Title);
+                    const fullCombinedNormalizedTitle = normalizedKhodroTitle + " " + normalizedTitle;
+
+                    // Check if EVERY word from searchTermsArray is included in the fullCombinedNormalizedTitle
+                    const allTermsMatch = searchTermsArray.every(term => fullCombinedNormalizedTitle.includes(term));
+                    if (!allTermsMatch) {
+                        // For debugging: log why a candidate is rejected
+                        // log('debug', `Rejected candidate ${p.Id}: Terms mismatch. Full combined: "${fullCombinedNormalizedTitle}", Search terms: "${searchTermsArray.join(', ')}"`);
+                    }
+                    return allTermsMatch;
+                });
+
+                let foundProject = null;
+
+                if (foundCandidates.length > 0) {
+                    // Define colors to prioritize in search
+                    const colors = ['خاکستری', 'سفید', 'مشکی']; // Add other colors if needed, in order of preference
+
+                    for (const color of colors) {
+                        if (normalizedSearchTerm.includes(color)) {
+                            const projectWithMatchingColor = foundCandidates.find(c => normalizeTextForSearch(c.Title).includes(color));
+                            if (projectWithMatchingColor) {
+                                foundProject = projectWithMatchingColor;
+                                break; // Found a specific color match, prioritize this
+                            }
+                        }
+                    }
+
+                    // If no specific color match was prioritized, or no color was searched, pick the first one
+                    if (!foundProject) {
+                        foundProject = foundCandidates[0];
+                    }
+                }
+
+
                 if (foundProject) {
                     log('success', `محصول "${foundProject.KhodroTitle}" پیدا شد!`);
                     stopContinuousProductSearch();
@@ -1193,111 +1297,179 @@
             }
             .settings-options input[type="radio"] { accent-color: var(--theme-primary);
             }
-            /* Original media query for mobile */
-            @media(max-width:767px){.captcha-sms-messages-container{flex-direction:column}.popup-header{padding:10px 15px; flex-direction: column; align-items: flex-start;
-            gap: 10px;}.popup-main-content{padding:15px;gap:15px}.popup-section{padding:15px}.section-title{font-size:17px;margin-bottom:12px}.items-grid .item h4{font-size:16px}.items-grid .item p{font-size:13px}.message{font-size:12px}}
+            /* Original media query for mobile (mostly a fallback for very narrow views) */
+            @media(max-width:767px){
+                .captcha-sms-messages-container{flex-direction:column}
+                .popup-header{padding:10px 15px; flex-direction: column; align-items: flex-start; gap: 10px;}
+                .popup-main-content{padding:15px;gap:15px}
+                .popup-section{padding:15px}
+                .section-title{font-size:17px;margin-bottom:12px}
+                .items-grid .item h4{font-size:16px} /* Note: .item might not exist, but .found-product-card is key */
+                .items-grid .item p{font-size:13px}
+                .message{font-size:12px}
+            }
 
-            /* NEW Mobile Optimization Styles */
-            @media (max-width: 767px) {
+            /* Improved Mobile Optimization Styles for all typical mobile screens */
+            @media (max-width: 991px) { /* Adjust this breakpoint if needed, e.g., 767px or 575px */
                 .popup-content-wrapper {
-                    width: 100%;
-                    margin: 10px;
-                    max-height: 98vh;
+                    width: calc(100% - 20px) !important; /* Take almost full width with some margin */
+                    margin: 10px !important;
+                    max-height: 98vh !important; /* Keep it slightly smaller than full viewport height */
+                    overflow-y: auto !important; /* Ensure content is scrollable */
                 }
                 .popup-header {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 10px;
-                    padding: 10px 15px;
+                    flex-direction: column !important;
+                    align-items: flex-start !important;
+                    gap: 10px !important;
+                    padding: 10px 15px !important;
                 }
                 .popup-header-right {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    width: 100%;
-                    gap: 8px;
+                    flex-direction: column !important;
+                    align-items: flex-start !important;
+                    width: 100% !important;
+                    gap: 8px !important;
                 }
                 .header-info-item {
-                    font-size: 0.9rem;
+                    font-size: 0.9rem !important;
                 }
                 .popup-title {
-                    font-size: 1.1rem;
+                    font-size: 1.1rem !important;
                 }
                 .popup-main-content {
-                    padding: 15px;
-                    gap: 15px;
+                    padding: 15px !important;
+                    gap: 15px !important;
                 }
                 .popup-section {
-                    padding: 15px;
+                    padding: 15px !important;
                 }
                 .section-title {
-                    font-size: 1rem;
-                    margin-bottom: 12px;
+                    font-size: 1rem !important;
+                    margin-bottom: 12px !important;
                 }
                 .search-input-group,
                 .settings-input-group,
                 .sms-input-group {
-                    flex-direction: column;
-                    gap: 10px;
+                    flex-direction: column !important;
+                    gap: 10px !important;
                 }
                 .action-btn {
-                    width: 100%;
-                    padding: 12px 15px;
-                    font-size: 0.95rem;
+                    width: 100% !important;
+                    padding: 12px 15px !important;
+                    font-size: 0.95rem !important;
                 }
                 .styled-input {
-                    padding: 10px 12px;
-                    font-size: 0.95rem;
+                    padding: 10px 12px !important;
+                    font-size: 0.95rem !important;
                 }
                 .items-grid .found-product-card {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 15px;
-                    padding: 1rem;
+                    flex-direction: column !important;
+                    align-items: center !important; /* Center items in card for better look on small screens */
+                    gap: 15px !important;
+                    padding: 1rem !important;
+                    text-align: center !important; /* Center text within the card */
                 }
                 .found-product-image {
-                    width: 100%;
-                    height: 180px;
-                    border-radius: var(--border-radius-sm);
+                    width: 100% !important;
+                    height: 180px !important;
+                    border-radius: var(--border-radius-sm) !important;
                 }
                 .found-product-details {
-                    width: 100%;
-                    text-align: center;
+                    width: 100% !important;
+                    text-align: center !important;
                 }
                 .found-product-title {
-                    font-size: 1.1rem;
+                    font-size: 1.1rem !important;
                 }
                 .found-product-model {
-                    font-size: 0.85rem;
+                    font-size: 0.85rem !important;
                 }
                 .found-product-price {
-                    align-self: center;
-                    margin-top: 0.8rem;
-                    font-size: 0.95rem;
-                    padding: 0.4rem 0.8rem;
+                    align-self: center !important;
+                    margin-top: 0.8rem !important;
+                    font-size: 0.95rem !important;
+                    padding: 0.4rem 0.8rem !important;
                 }
                 .captcha-sms-messages-container {
-                    flex-direction: column;
-                    gap: 15px;
+                    flex-direction: column !important;
+                    gap: 15px !important;
                 }
                 .messages-content {
-                    max-height: 200px;
+                    max-height: 200px !important;
                 }
                 .message {
-                    font-size: 0.8rem;
-                    padding: 8px 10px;
+                    font-size: 0.8rem !important;
+                    padding: 8px 10px !important;
                 }
                 .captcha-image-container {
-                    min-height: 50px;
-                    padding: 8px;
+                    min-height: 50px !important;
+                    padding: 8px !important;
                 }
                 .submit-order-btn {
-                    font-size: 1rem;
-                    padding: 12px;
+                    font-size: 1rem !important;
+                    padding: 12px !important;
                 }
                 .settings-options {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 8px;
+                    flex-direction: column !important;
+                    align-items: flex-start !important;
+                    gap: 8px !important;
+                }
+
+                /* NEW Collapsible styles for mobile */
+                .collapsible-toggle {
+                    display: flex !important; /* Show on mobile */
+                    width: 100% !important;
+                    justify-content: space-between !important;
+                    align-items: center !important;
+                    background: none !important; /* Remove section-title background */
+                    border: none !important;
+                    cursor: pointer !important;
+                    padding: 10px 0 !important;
+                    color: var(--theme-primary) !important;
+                    font-size: 1.1rem !important;
+                    font-weight: 500 !important;
+                    border-bottom: 1px solid rgba(255,255,255,.15) !important;
+                    margin-bottom: 1rem !important;
+                    text-align: right !important; /* For Persian text */
+                }
+                .collapsible-toggle .collapse-icon {
+                    display: inline-block !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                    border-left: 5px solid transparent !important;
+                    border-right: 5px solid transparent !important;
+                    border-top: 5px solid var(--theme-primary) !important;
+                    transition: transform 0.3s ease !important;
+                    margin-right: 8px !important; /* Space between text and icon */
+                }
+                .collapsible-toggle.open .collapse-icon {
+                    transform: rotate(180deg) !important;
+                }
+                /* Removed !important from display here, so JS can control it */
+                .collapsible-content {
+                    display: none; /* Hidden by default on mobile, JS will change this */
+                    padding-top: 10px !important; /* Add some space from the toggle */
+                    border-top: none !important; /* Remove redundant border */
+                }
+            }
+
+            /* Ensure settings are always open on desktop */
+            @media (min-width: 992px) {
+                .collapsible-toggle {
+                    display: none !important; /* Hide on desktop */
+                }
+                .collapsible-content {
+                    display: block !important; /* Always show on desktop */
+                    padding-top: 0 !important;
+                }
+                .settings-section .section-title { /* Restore desktop section title styles */
+                    display: block !important;
+                    margin:0 0 1rem !important;
+                    color:var(--theme-primary) !important;
+                    border-bottom:1px solid rgba(255,255,255,.15) !important;
+                    padding-bottom:10px !important;
+                    font-size:1.1rem !important;
+                    font-weight:500 !important;
+                    cursor: default !important; /* Remove pointer cursor */
                 }
             }
         `);
