@@ -631,36 +631,44 @@
     }
 
     async function requestAndHandleSms(isManualRequest = false) {
+        // اگر دستی درخواست شده و دکمه غیرفعال است (مثلا به دلیل کول داون قبلی)، اجازه ندهید.
         if (isManualRequest && uiElements.getSmsCodeButton.disabled) {
-            return false;
+            displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.', 'warn');
+            return false; // برای درخواست دستی، اگر دکمه غیرفعال است، خروج
         }
-        displayMessage(`در حال ارسال درخواست SMS...`, 'info');
-        if (isManualRequest) uiElements.getSmsCodeButton.disabled = true;
 
+        displayMessage(`در حال ارسال درخواست SMS به ایران‌خودرو...`, 'info');
+        if (isManualRequest) uiElements.getSmsCodeButton.disabled = true; // دکمه را غیرفعال کن
+
+        // همیشه پایش سرور واسط را شروع کن، حتی اگر درخواست به ایران‌خودرو موفق نباشد.
         startSmsRelayPolling();
 
         const smsResponse = await requestSmsFromIKD();
 
         if (!smsResponse.success) {
-            displayMessage(`ارسال درخواست SMS ناموفق: ${smsResponse.error}.`, 'error');
+            displayMessage(`ارسال درخواست SMS به ایران‌خودرو ناموفق: ${smsResponse.error}.`, 'error');
             if (smsResponse.isCooldown) {
+                // اگر به دلیل کول‌داون بود، فقط هشدار بده و تایمر را شروع کن.
+                displayMessage('محدودیت زمانی SMS فعال است. ربات همچنان کد را از سرور واسط می‌خواند.', 'warn');
                 startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
-                displayMessage('محدودیت زمانی SMS فعال است. ربات همچنان کد را از سرور می‌خواند.', 'warn');
+                // این بار، تابع true برمی‌گرداند تا فرآیند اصلی متوقف نشود، زیرا ما SMS را از سرور واسط پایش می‌کنیم.
+                return true; // بازگشت موفقیت‌آمیز به معنای ادامه فرآیند پایش SMS
+            } else {
+                // اگر خطای دیگری بود (غیر از کول‌داون)، دکمه دستی را فعال کن و شکست را گزارش کن.
+                if(isManualRequest) {
+                    uiElements.getSmsCodeButton.disabled = false;
+                }
+                return false; // بازگشت شکست برای خطاهای غیر از کول‌داون
             }
-            else if(isManualRequest) {
-                uiElements.getSmsCodeButton.disabled = false;
-            }
-            return false; // Return failure to allow the main loop to restart
         } else {
             displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
-            if(isManualRequest) startManualSmsCooldownTimer();
-            return true; // Return success
+            if(isManualRequest) startManualSmsCooldownTimer(); // برای درخواست دستی، تایمر را شروع کن
+            return true; // بازگشت موفقیت‌آمیز
         }
     }
 
     async function startOrderProcess() {
         if (currentOrderData.stopProcess || !currentOrderData.selectedProject || currentOrderData.isSubmittingOrderProcess) return;
-
         try {
             log('info', 'شروع فرآیند اصلی...');
             currentOrderData.captchaAutoFilled = false;
@@ -686,12 +694,20 @@
                 return;
             }
 
-            const smsSuccess = await requestAndHandleSms(false);
-            if (!smsSuccess) {
-                log('warn', 'مرحله درخواست SMS ناموفق بود. فرآیند برای تلاش مجدد از ابتدا آغاز می‌شود.');
+            // اینجا تابع requestAndHandleSms را فراخوانی می‌کنیم.
+            // این تابع حالا در صورت کول‌داون، true برمی‌گرداند و پایش SMS را شروع می‌کند.
+            const smsRequestStatus = await requestAndHandleSms(false);
+            if (!smsRequestStatus) {
+                // این فقط برای خطاهای غیر از کول‌داون است که requestAndHandleSms مقدار false را برمی‌گرداند.
+                log('warn', 'مرحله درخواست SMS به دلیل خطای غیر از کول‌داون ناموفق بود. فرآیند برای تلاش مجدد از ابتدا آغاز می‌شود.');
                 setTimeout(startOrderProcess, CONFIG.apiRetryDelayMs);
                 return;
             }
+
+            // اگر smsRequestStatus === true بود (چه درخواست به IKD موفق بود، چه به دلیل کول‌داون)،
+            // به این معنی است که پایش SMS از سرور واسط شروع شده است.
+            // بنابراین، ما منتظر می‌مانیم تا pollSmsFromRelay() یا کاربر دستی SMS را وارد کند.
+            // هیچ ری‌استارتی در اینجا لازم نیست، مگر اینکه به دلیل خطای غیر از کول‌داون باشد.
 
         } catch (e) {
             log('error', 'یک خطای پیش‌بینی نشده در فرآیند اصلی رخ داد. ربات مجددا تلاش خواهد کرد.', e);
