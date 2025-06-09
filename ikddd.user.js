@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      2025-06-12.15
 // @description  Redesigned the found product card to be more compact, modern, and visually appealing.
-// @author       You (Modified by AI)
+// @author       Masoud
 // @match        https://esale.ikd.ir/*
 // @icon         https://esale.ikd.ir/logo.png
 // @grant        GM_addStyle
@@ -243,9 +243,9 @@
 
         const solvers = [];
         if (selectedSolver === 'solver-1' && CONFIG.remoteSolverUrl1) {
-            solvers.push({ name: 'سرور ۱ (عمومی)', url: CONFIG.remoteSolverUrl1 });
+            solvers.push({ name: 'سرور ۱ (عددی)', url: CONFIG.remoteSolverUrl1 });
         } else if (selectedSolver === 'solver-2' && CONFIG.remoteSolverUrl2) {
-            solvers.push({ name: 'سرور ۲ (شخصی)', url: CONFIG.remoteSolverUrl2 });
+            solvers.push({ name: 'سرور ۲ (متنی)', url: CONFIG.remoteSolverUrl2 });
         }
 
         if (solvers.length === 0) {
