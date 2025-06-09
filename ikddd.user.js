@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         irankhodrodisel_v3.7.0
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-12.14
-// @description  New animated trigger button with icon and gradient, matching the modern theme.
+// @version      2025-06-12.15
+// @description  Redesigned the found product card to be more compact, modern, and visually appealing.
 // @author       You (Modified by AI)
 // @match        https://esale.ikd.ir/*
 // @icon         https://esale.ikd.ir/logo.png
@@ -441,7 +441,7 @@
             getSmsCodeButton: document.getElementById('get-sms-code-btn-popup'),
             submitOrderButton: document.getElementById('submit-order-btn-popup'),
             noMessagePlaceholder: popup.querySelector('.no-message-exist'),
-            // NEW UI Elements for settings
+            // UI Elements for settings
             toggleMobilePanelButton: document.getElementById('toggle-mobile-panel-btn'),
             mobileInputPanel: document.getElementById('mobile-input-panel'),
             mobileNumberInput: document.getElementById('mobile-number-input'),
@@ -457,7 +457,6 @@
         uiElements.captchaInput.addEventListener('input', checkAndEnableSubmitButton);
         uiElements.smsInput.addEventListener('input', checkAndEnableSubmitButton);
 
-        // NEW: Event listener for the toggle button
         uiElements.toggleMobilePanelButton.addEventListener('click', () => {
             const panel = uiElements.mobileInputPanel;
             if (panel.style.display === 'none') {
@@ -521,18 +520,19 @@
     function displayFoundItem(project) {
         uiElements.itemsGrid.innerHTML = '';
         const card = document.createElement('div');
-        card.className = 'product-card';
+        card.className = 'found-product-card';
         const imageUrl = `https://esale.ikd.ir/images/${project.ModelCode}.jpg`;
-        const placeholderUrl = `https://placehold.co/600x400/2b4157/f8f9fa?text=${encodeURIComponent(project.KhodroTitle)}`;
+        const placeholderUrl = `https://placehold.co/400x400/2b4157/f8f9fa?text=${encodeURIComponent(project.KhodroTitle)}`;
         card.innerHTML = `
-            <div class="product-image-container">
+            <div class="found-product-image">
                 <img src="${imageUrl}" alt="تصویر ${project.KhodroTitle}" onerror="this.onerror=null;this.src='${placeholderUrl}';">
             </div>
-            <div class="product-details">
-                <h4 class="product-title">${project.KhodroTitle}</h4>
-                 <p class="product-model">${project.Title}</p>
-                 <div class="product-price">
-                    <span>قیمت نهایی:</span>
+            <div class="found-product-details">
+                <h4 class="found-product-title">${project.KhodroTitle}</h4>
+                <p class="found-product-model">${project.Title}</p>
+                <div class="found-product-price">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M4 10.781c.525 1.657 2.343 3.219 5.088 3.219.525 0 1.023-.082 1.465-.223.442-.141.836-.324 1.178-.543.342-.219.633-.477.86-.77.227-.292.416-.612.558-.954.142-.342.24-.71.277-1.107.038-.396.058-.808.058-1.234s-.02-.838-.058-1.234a4.31 4.31 0 0 0-.277-1.107 4.312 4.312 0 0 0-.558-.954 4.322 4.322 0 0 0-.86-.77 4.328 4.328 0 0 0-1.178-.543A5.962 5.962 0 0 0 9.088 4c-2.746 0-4.563 1.562-5.088 3.219-.076.24-.117.487-.117.722s.04.481.117.722z"/><path d="M10.854 5.293a.5.5 0 0 0-.708-.707L7.543 6.22l-.646-.647a.5.5 0 1 0-.708.708l.647.646-.647.646a.5.5 0 1 0 .708.708l.646-.647.646.647a.5.5 0 0 0 .708-.707L8.25 7.28l2.604-2.605z M4.5 13.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm1.5-1.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z"/></svg>
+                    <span>قیمت:</span>
                     <span class="price-value">${project.InternetPrice?.toLocaleString('fa-IR') || 'N/A'} ریال</span>
                 </div>
             </div>
@@ -889,7 +889,7 @@
     }
 
     function initializeScript() {
-        log('info', `Script initializing (v3.8.0 New Trigger Button).`);
+        log('info', `Script initializing (v3.9.0 Compact Product Card).`);
         selectedSolver = GM_getValue('selectedSolver', 'solver-2');
         mobileNumber = GM_getValue('savedMobileNumber', CONFIG.defaultMobileNumber);
         log('info', `حل‌کننده کپچای انتخاب شده: ${selectedSolver}`);
@@ -981,15 +981,18 @@
             .action-btn.secondary-btn { background-color: #495057; color: var(--theme-text-light); }
             .action-btn.secondary-btn:hover { background-color: #5a6268; }
             .action-btn:disabled{background: #555c63 !important; color:#868e96!important;cursor:not-allowed;transform:none;box-shadow:none;}
-            .items-grid .product-card{background-color:rgba(255,255,255,.05);border-radius:var(--border-radius-md);border:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;overflow:hidden;transition:all .3s ease}
-            .product-image-container{width:100%;height:200px;overflow:hidden;background-color:#212529}
-            .product-image-container img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}
-            .product-card:hover .product-image-container img{transform:scale(1.05)}
-            .product-details{padding:1.5rem}
-            .product-title{font-size:1.25rem;font-weight:500;color:var(--theme-primary);margin:0 0 .5rem}
-            .product-model{font-size:.9rem;color:var(--theme-light-gray);margin:0 0 1rem;line-height:1.5}
-            .product-price{display:flex;justify-content:space-between;align-items:center;background-color:rgba(0,0,0,.2);padding:.75rem 1rem;border-radius:var(--border-radius-sm);font-size:1.1rem;font-weight:500}
-            .product-price .price-value{color:var(--theme-primary);font-weight: bold;}
+            /* NEW Product Card Styles */
+            .items-grid .found-product-card { background-color: rgba(255,255,255,.05); border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 20px; padding: 1rem; overflow: hidden; transition: all .3s ease; }
+            .items-grid .found-product-card:hover { border-color: var(--theme-primary); background-color: rgba(255,255,255,.08); }
+            .found-product-image { width: 120px; height: 120px; flex-shrink: 0; border-radius: var(--border-radius-sm); overflow: hidden; }
+            .found-product-image img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s ease; }
+            .found-product-card:hover .found-product-image img { transform: scale(1.1); }
+            .found-product-details { display: flex; flex-direction: column; gap: 0.5rem; flex-grow: 1; }
+            .found-product-title { font-size: 1.2rem; font-weight: 500; color: var(--theme-primary); margin: 0; }
+            .found-product-model { font-size: .9rem; color: var(--theme-light-gray); margin: 0; line-height: 1.5; }
+            .found-product-price { display: flex; align-items: center; gap: 8px; background-color: rgba(0,0,0,.2); padding: .5rem 1rem; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; margin-top: 0.5rem; align-self: flex-start; }
+            .found-product-price .price-value { color: var(--theme-primary); font-weight: bold; }
+            .found-product-price svg { color: var(--theme-primary); }
             .captcha-sms-messages-container{display:none;gap:20px;align-items:flex-start}
             @media(min-width:768px){.captcha-sms-messages-container{flex-direction:row}.captcha-sms-box{flex:1.2}.messages-box{flex:.8}}
             .captcha-sms-box,.messages-box{min-width:0}
