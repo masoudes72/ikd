@@ -243,9 +243,9 @@
 
         const solvers = [];
         if (selectedSolver === 'solver-1' && CONFIG.remoteSolverUrl1) {
-            solvers.push({ name: 'سرور ۱ (عددی)', url: CONFIG.remoteSolverUrl1 });
+            solvers.push({ name: 'سرور ۱ (عمومی)', url: CONFIG.remoteSolverUrl1 });
         } else if (selectedSolver === 'solver-2' && CONFIG.remoteSolverUrl2) {
-            solvers.push({ name: 'سرور ۲ (متنی)', url: CONFIG.remoteSolverUrl2 });
+            solvers.push({ name: 'سرور ۲ (شخصی)', url: CONFIG.remoteSolverUrl2 });
         }
 
         if (solvers.length === 0) {
@@ -385,8 +385,8 @@
                         <label class="panel-label">انتخاب حل‌کننده کپچا:</label>
                         <div class="settings-options" id="captcha-solver-settings">
                             <label><input type="radio" name="captcha-solver-option" value="solver-none"> غیرفعال</label>
-                            <label><input type="radio" name="captcha-solver-option" value="solver-1"> عمومی</label>
-                            <label><input type="radio" name="captcha-solver-option" value="solver-2"> شخصی</label>
+                            <label><input type="radio" name="captcha-solver-option" value="solver-1"> عددی</label>
+                            <label><input type="radio" name="captcha-solver-option" value="solver-2"> متنی</label>
                         </div>
                     </div>
                 </section>
