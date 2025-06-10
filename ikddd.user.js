@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         irankhodrodisel
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-12.23
+// @version      2025-06-12.23-hybrid-search
 // @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha. Improved mobile responsiveness and collapsible settings, and refined product search logic with advanced text normalization and selection.
 // @author       Masoud
 // @match        https://esale.ikd.ir/*
@@ -46,7 +46,7 @@
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
-        botVersion: 'v4.1.3', // نسخه به‌روزرسانی شده
+        botVersion: 'v4.3.0', // نسخه به‌روزرسانی شده
 
         // NEW: مجموعه تنظیمات برای حالت حل خودکار (Auto Solver)
         autoSolverConfig: {
@@ -71,7 +71,6 @@
             maxRetryDelayMs: 2000, // حداکثر تأخیر برای تلاش‌های مجدد API در حالت دستی
             minSubmitFailedDelayMs: 1000, // حداقل تأخیر پس از ثبت نهایی ناموفق در حالت دستی
             maxSubmitFailedDelayMs: 3000, // حداکثر تأخیر پس از ثبت نهایی ناموفق در حالت دستی
-            // در حالت دستی solverOrder و maxCaptchaSolveRetries معنی ندارند
         }
     };
     const API_ENDPOINTS_IKD = {
@@ -146,13 +145,12 @@
             .toString() // Ensure it's a string
             .toLowerCase()
             // Replace specific Persian characters with their common counterparts
-            .replace(/ی/g, 'ي') // Replace Persian yeh with Arabic yeh
-            .replace(/ك/g, 'ک') // Replace Persian kaf with Arabic kaf
+            .replace(/[ي]/g, 'ی') // Arabic Yeh to Persian Yeh
+            .replace(/[ك]/g, 'ک') // Arabic Kaf to Persian Kaf
             // Replace zero-width non-joiner (نیم‌فاصله) with a space to ensure word separation
             .replace(/\u200C/g, ' ')
-            // Remove non-alphanumeric characters (keep letters, numbers, spaces)
-            // \p{L} for all Unicode letters, \p{N} for all Unicode numbers
-            .replace(/[^\p{L}\p{N}\s]/gu, '')
+            // Replace special characters with a space instead of removing them
+            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
             // Replace multiple spaces with a single space
             .replace(/\s+/g, ' ')
             .trim();
@@ -210,6 +208,113 @@
             return null;
         }
     }
+
+    // START: HYBRID SEARCH LOGIC PROVIDED BY USER
+    /**
+    * Find the closest matching project based on a search term
+    * using a hybrid similarity algorithm (Levenshtein + Damerau-Levenshtein + Jaccard).
+    *
+    * @param {string} searchTerm - The term to search for.
+    * @param {Array} saleProjects - List of project objects with Id, Title, and KhodroTitle.
+    * @returns {Object|null} The closest matching project.
+    */
+    function findClosestMatch(searchTerm, saleProjects) {
+        if (!searchTerm || !Array.isArray(saleProjects) || saleProjects.length === 0) {
+            // Throwing an error might stop the script, returning null is safer for a userscript
+            return null;
+        }
+
+        const normalizedSearchTerm = normalizeTextForSearch(searchTerm);
+
+        function levenshteinDistance(str1, str2) {
+            const len1 = str1.length, len2 = str2.length;
+            const dp = Array.from({ length: len1 + 1 }, () => Array(len2 + 1).fill(0));
+            for (let i = 0; i <= len1; i++) dp[i][0] = i;
+            for (let j = 0; j <= len2; j++) dp[0][j] = j;
+            for (let i = 1; i <= len1; i++) {
+                for (let j = 1; j <= len2; j++) {
+                    if (str1[i - 1] === str2[j - 1]) {
+                        dp[i][j] = dp[i - 1][j - 1];
+                    } else {
+                        dp[i][j] = Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
+                    }
+                }
+            }
+            return dp[len1][len2];
+        }
+
+        function damerauLevenshtein(str1, str2) {
+            const len1 = str1.length, len2 = str2.length;
+            const dp = Array.from({ length: len1 + 1 }, () => Array(len2 + 1).fill(0));
+            for (let i = 0; i <= len1; i++) dp[i][0] = i;
+            for (let j = 0; j <= len2; j++) dp[0][j] = j;
+            for (let i = 1; i <= len1; i++) {
+                for (let j = 1; j <= len2; j++) {
+                    let cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+                    dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+                    if (i > 1 && j > 1 && str1[i - 1] === str2[j - 2] && str1[i - 2] === str2[j - 1]) {
+                        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
+                    }
+                }
+            }
+            return dp[len1][len2];
+        }
+
+        function jaccardSimilarity(str1, str2) {
+            const set1 = new Set(str1.split(" "));
+            const set2 = new Set(str2.split(" "));
+            const intersection = new Set([...set1].filter(word => set2.has(word)));
+            const union = set1.size + set2.size - intersection.size;
+            return union === 0 ? 1 : intersection.size / union;
+        }
+
+        function nGramSimilarity(str1, str2, n = 2) {
+            if (!str1 || !str2 || str1.length < n || str2.length < n) return 0;
+            const getNGrams = s => new Set(Array.from({ length: s.length - n + 1 }, (_, i) => s.substr(i, n)));
+            const ngrams1 = getNGrams(str1);
+            const ngrams2 = getNGrams(str2);
+            const intersection = [...ngrams1].filter(g => ngrams2.has(g)).length;
+            const union = ngrams1.size + ngrams2.size - intersection;
+            return union === 0 ? 1 : intersection / union;
+        }
+
+        let bestMatch = null;
+        let highestScore = -Infinity;
+
+        for (const project of saleProjects) {
+            const combinedTitle = `${project.Title || ''} ${project.KhodroTitle || ''}`;
+            if (!combinedTitle) continue;
+
+            // Use the robust normalizer for the project title as well
+            const normalizedCombinedTitle = normalizeTextForSearch(combinedTitle);
+
+            const levDist = levenshteinDistance(normalizedSearchTerm, normalizedCombinedTitle);
+            const damLevDist = damerauLevenshtein(normalizedSearchTerm, normalizedCombinedTitle);
+            const jaccardScore = jaccardSimilarity(normalizedSearchTerm, normalizedCombinedTitle);
+            const ngramScore = nGramSimilarity(normalizedSearchTerm, normalizedCombinedTitle);
+
+            const maxLen = Math.max(normalizedSearchTerm.length, normalizedCombinedTitle.length);
+            const normalizedLev = maxLen === 0 ? 1 : 1 - (levDist / maxLen);
+            const normalizedDamLev = maxLen === 0 ? 1 : 1 - (damLevDist / maxLen);
+
+            const finalScore = (
+                normalizedLev * 0.35 +
+                normalizedDamLev * 0.35 +
+                jaccardScore * 0.2 +
+                ngramScore * 0.1
+            );
+
+            console.log(`🔍 Checking: "${normalizedCombinedTitle}"`);
+            console.log(`   🔹 Final Score: ${finalScore}`);
+
+            if (finalScore > highestScore) {
+                highestScore = finalScore;
+                bestMatch = project; // Store the entire project object
+            }
+        }
+        return bestMatch;
+    }
+    // END: HYBRID SEARCH LOGIC
 
     // =====================================================================================
     // --- 📞 API CALL FUNCTIONS ---
@@ -277,7 +382,6 @@
     }
 
     async function addOrderToIKD(orderPayload) {
-        // NEW: استفاده از تنظیمات تأخیر از activeConfig
         const activeConfig = getActiveConfig();
         await sleep(getRandomDelay(activeConfig.minApiDelayMs, activeConfig.maxApiDelayMs));
         try {
@@ -310,13 +414,11 @@
         }
 
         const activeConfig = getActiveConfig();
-        // تنظیمات فعال
         const solversToTry = [];
         const definedSolvers = {
             'solver-1': { name: 'سرور ۱ (عمومی)', url: CONFIG.remoteSolverUrl1 },
             'solver-2': { name: 'سرور ۲ (شخصی)', url: CONFIG.remoteSolverUrl2 }
         };
-        // NEW: استفاده از solverOrder تعریف شده در activeConfig (برای autoSolverConfig)
         if (activeConfig.solverOrder && Array.isArray(activeConfig.solverOrder)) {
             for (const solverKey of activeConfig.solverOrder) {
                 if (definedSolvers[solverKey] && definedSolvers[solverKey].url) {
@@ -324,8 +426,6 @@
                 }
             }
         } else if (selectedSolver !== 'solver-none' && definedSolvers[selectedSolver] && definedSolvers[selectedSolver].url) {
-            // اگر solverOrder در کانفیگ فعال نباشد (مثلا برای دستی)
-            // یا اگر فقط یک سرور انتخاب شده باشد (رفتار فعلی)، همان را اضافه می‌کنیم
             solversToTry.push(definedSolvers[selectedSolver]);
         }
 
@@ -542,7 +642,6 @@
             mobileNumberInput: document.getElementById('mobile-number-input'),
             saveMobileButton: document.getElementById('save-mobile-btn'),
             updateButton: document.getElementById('check-update-btn'),
-            // NEW: Collapsible elements
             toggleSettingsButton: document.getElementById('toggle-settings-btn'),
             settingsContent: document.getElementById('settings-content'),
         };
@@ -570,7 +669,6 @@
                 GM_setValue('savedMobileNumber', mobileNumber);
                 uiElements.userDisplayName.textContent = mobileNumber;
                 displayMessage(`شماره موبایل به ${mobileNumber} تغییر یافت و ذخیره شد.`, 'success');
-                // نیازی به resetPopupUI کامل نیست، فقط پنل موبایل را پنهان کنید
                 uiElements.mobileInputPanel.style.display = 'none';
             } else {
                 displayMessage('لطفاً یک شماره موبایل ۱۱ رقمی صحیح وارد کنید.', 'error');
@@ -591,7 +689,6 @@
             });
         });
 
-        // NEW: Event listener for collapsible settings
         uiElements.toggleSettingsButton.addEventListener('click', () => {
             if (uiElements.settingsContent.style.display === 'none') {
                 uiElements.settingsContent.style.display = 'block';
@@ -601,9 +698,7 @@
                 uiElements.toggleSettingsButton.classList.remove('open');
             }
         });
-
-        // Initial state for collapsible settings based on device
-        resetPopupUI(); // این تابع قبلاً حالت اولیه را تنظیم می‌کرد، حالا شامل بخش collapsible هم می‌شود.
+        resetPopupUI();
     }
 
     function checkAndEnableSubmitButton() {
@@ -635,7 +730,6 @@
     }
 
     function updateClockDisplay() {
-        // Updated to include bot version
         if(!uiElements.liveClockAndVersion) return;
         const n = new Date();
         const timeString = `${n.getHours().toString().padStart(2,'0')}:${n.getMinutes().toString().padStart(2,'0')}`;
@@ -667,13 +761,12 @@
         uiElements.searchResultsSection.style.display = 'block';
         uiElements.captchaSmsContainer.style.display = 'flex';
 
-        // NEW: Scroll to captcha container
         setTimeout(() => {
             if (uiElements.captchaSmsContainer) {
-                const offset = uiElements.captchaSmsContainer.getBoundingClientRect().top + uiElements.mainPopup.scrollTop - 20; // 20px برای پدینگ بالا
+                const offset = uiElements.captchaSmsContainer.getBoundingClientRect().top + uiElements.mainPopup.scrollTop - 20;
                 uiElements.mainPopup.scrollTo({ top: offset, behavior: 'smooth' });
             }
-        }, 100); // تأخیر کوتاه برای اطمینان از رندر شدن عناصر و نمایش پاپ‌آپ
+        }, 100);
     }
 
     function displayCaptcha(captchaData) {
@@ -730,17 +823,15 @@
         }
     }
 
-    // NEW: تابع requestAndHandleSms برای اطمینان از شروع پولینگ بدون توجه به نتیجه درخواست
     async function requestAndHandleSms(isManualRequest = false) {
         if (isManualRequest && uiElements.getSmsCodeButton.disabled) {
             displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.', 'warn');
-            return true; // برای درخواست دستی، اگر دکمه غیرفعال است، خروج
+            return true;
         }
 
         displayMessage(`در حال ارسال درخواست SMS به ایران‌خودرو...`, 'info');
         if (isManualRequest) uiElements.getSmsCodeButton.disabled = true;
 
-        // NEW LOGIC: همیشه پولینگ از سرور رله را شروع می‌کنیم، بدون توجه به نتیجه درخواست IKD
         startSmsRelayPolling();
         const smsResponse = await requestSmsFromIKD();
 
@@ -751,18 +842,17 @@
                 startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
             }
             return true;
-            // همیشه True برمی‌گرداند تا فرآیند اصلی ادامه یابد
         } else {
             displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
             if(isManualRequest) startManualSmsCooldownTimer();
-            return true; // همیشه True برمی‌گرداند
+            return true;
         }
     }
 
 
     async function startOrderProcess() {
         if (currentOrderData.stopProcess || !currentOrderData.selectedProject || currentOrderData.isSubmittingOrderProcess) return;
-        const activeConfig = getActiveConfig(); // NEW: دریافت تنظیمات فعال
+        const activeConfig = getActiveConfig();
 
         try {
             log('info', 'شروع فرآیند اصلی...');
@@ -772,7 +862,6 @@
             if (uiElements.captchaInput) uiElements.captchaInput.value = '';
             if (uiElements.smsInput) uiElements.smsInput.value = '';
             checkAndEnableSubmitButton();
-            // NEW: استفاده از تأخیرهای مربوط به activeConfig
             await sleep(getRandomDelay(activeConfig.minApiDelayMs, activeConfig.maxApiDelayMs));
             displayMessage('در حال دریافت اطلاعات سفارش و کپچا...', 'info');
 
@@ -782,18 +871,14 @@
             ]);
             if (!orderDetailsResult.success) {
                 displayMessage(`خطا در دریافت اطلاعات سفارش: ${orderDetailsResult.error}. تلاش مجدد...`, 'error');
-                // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
                 setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
                 return;
             }
             currentOrderData.orderDetails = orderDetailsResult.data;
             log('success', 'اطلاعات اولیه سفارش با موفقیت دریافت شد.');
 
-            // --- Handle Captcha Processing ---
-            let captchaProcessSuccess = false;
             if (!captchaApiResult.success) {
                  displayMessage(`خطا در دریافت کپچا: ${captchaApiResult.error}. تلاش مجدد...`, 'error');
-                 // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
                  setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
                 return;
             }
@@ -801,11 +886,8 @@
             currentOrderData.captchaToken = captchaApiResult.data.token;
             if (selectedSolver === 'solver-none') {
                 displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
-                currentOrderData.captchaAutoFilled = false;
-                captchaProcessSuccess = true; // در این حالت فرض می‌کنیم دستی وارد می‌شود
             } else {
-                // NEW: منطق تلاش‌های متعدد برای حل کپچا در حالت خودکار
-                let captchaSolvedByAutoSolver = false;
+                let captchaSolved = false;
                 for (let i = 0; i < activeConfig.maxCaptchaSolveRetries; i++) {
                     displayMessage(`تلاش ${i + 1} از ${activeConfig.maxCaptchaSolveRetries} برای حل خودکار کپچا...`, 'info');
                     const solveResponse = await solveCaptcha(captchaApiResult.data);
@@ -814,48 +896,25 @@
                         currentOrderData.captchaCode = solveResponse.answer;
                         currentOrderData.captchaAutoFilled = true;
                         uiElements.captchaInput.value = solveResponse.answer;
-                        captchaSolvedByAutoSolver = true;
+                        captchaSolved = true;
                         break;
-                        // اگر حل شد، از حلقه خارج می‌شویم
                     } else {
                         displayMessage(`تلاش ${i + 1} برای حل خودکار کپچا ناموفق بود: ${solveResponse.error}.`, 'warn');
-                        // NEW: تأخیر بین تلاش‌های حل کپچا
                         if (i < activeConfig.maxCaptchaSolveRetries - 1) {
                             await sleep(getRandomDelay(activeConfig.minCaptchaRetryDelayMs, activeConfig.maxCaptchaRetryDelayMs));
                         }
                     }
                 }
-
-                if (captchaSolvedByAutoSolver) {
-                    captchaProcessSuccess = true;
-                } else {
-                    currentOrderData.captchaAutoFilled = false;
+                if (!captchaSolved) {
                     displayMessage('حل خودکار کپچا پس از چند تلاش ناموفق بود. لطفاً دستی وارد کنید.', 'warn');
-                    // اینجا می‌توانیم تصمیم بگیریم که آیا اگر حل خودکار کاملاً شکست خورد، فرآیند را مجدداً شروع کنیم
-                    // یا اجازه دهیم کاربر دستی وارد کند. برای پایداری بیشتر، بهتر است اجازه ورود دستی بدهیم.
-                    // اگر می‌خواهید در این مرحله هم فرآیند ری‌استارت شود:
-                    // setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
-                    // return;
-                    captchaProcessSuccess = true; // فرض می‌کنیم کاربر دستی وارد می‌کند تا فرآیند متوقف نشود
                 }
             }
 
-            // اگر کپچا به صورت خودکار پر نشده و ورود دستی هم انجام نشده باشد، فرآیند را مجدداً آغاز کنید.
-            // (این شرط فقط در صورتی فعال می‌شود که 'solver-none' انتخاب نشده باشد و حل خودکار شکست خورده باشد و کاربر هم چیزی وارد نکرده باشد)
-            if (!currentOrderData.captchaAutoFilled && uiElements.captchaInput.value.trim() === '' && selectedSolver !== 'solver-none') {
-                 displayMessage('کپچا پر نشد/حل نشد. فرآیند مجدداً آغاز می‌شود.', 'warn');
-                 // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
-                 setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
-                return;
-            }
-
             checkAndEnableSubmitButton();
-            // NEW: درخواست و مدیریت SMS (حتی اگر درخواست به IKD ناموفق باشد، پولینگ شروع می‌شود)
             await requestAndHandleSms(false);
         } catch (e) {
             log('error', 'یک خطای پیش‌بینی نشده در فرآیند اصلی رخ داد. ربات مجددا تلاش خواهد کرد.', e);
             displayMessage(`یک خطای غیرانتظره رخ داد: ${e.message}. شروع مجدد...`, 'error');
-            // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
             setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
         }
     }
@@ -872,52 +931,9 @@
             const projectsResponse = await getSaleProjectsFromIKD();
             if (!isContinuousSearchingProduct) return;
             if (projectsResponse.success && projectsResponse.data?.saleProjects?.length > 0) {
-                const saleProjects = projectsResponse.data.saleProjects;
-
-                // Normalize the search term first
-                const normalizedSearchTerm = normalizeTextForSearch(searchTerm);
-                // Split normalized search term into individual words
-                const searchTermsArray = normalizedSearchTerm.split(' ').filter(s => s.length > 0);
-
-                const foundCandidates = saleProjects.filter(p => {
-                    const normalizedKhodroTitle = normalizeTextForSearch(p.KhodroTitle);
-                    const normalizedTitle = normalizeTextForSearch(p.Title);
-                    const fullCombinedNormalizedTitle = normalizedKhodroTitle + " " + normalizedTitle;
-
-                    // Check if EVERY word from searchTermsArray is included in the fullCombinedNormalizedTitle
-                    const allTermsMatch = searchTermsArray.every(term => fullCombinedNormalizedTitle.includes(term));
-                    if (!allTermsMatch) {
-                        // For debugging: log why a candidate is rejected
-                        // log('debug', `Rejected candidate ${p.Id}: Terms mismatch. Full combined: "${fullCombinedNormalizedTitle}", Search terms: "${searchTermsArray.join(', ')}"`);
-                    }
-                    return allTermsMatch;
-                });
-
-                let foundProject = null;
-
-                if (foundCandidates.length > 0) {
-                    // Define colors to prioritize in search
-                    const colors = ['خاکستری', 'سفید', 'مشکی']; // Add other colors if needed, in order of preference
-
-                    for (const color of colors) {
-                        if (normalizedSearchTerm.includes(color)) {
-                            const projectWithMatchingColor = foundCandidates.find(c => normalizeTextForSearch(c.Title).includes(color));
-                            if (projectWithMatchingColor) {
-                                foundProject = projectWithMatchingColor;
-                                break; // Found a specific color match, prioritize this
-                            }
-                        }
-                    }
-
-                    // If no specific color match was prioritized, or no color was searched, pick the first one
-                    if (!foundProject) {
-                        foundProject = foundCandidates[0];
-                    }
-                }
-
-
+                const foundProject = findClosestMatch(searchTerm, projectsResponse.data.saleProjects);
                 if (foundProject) {
-                    log('success', `محصول "${foundProject.KhodroTitle}" پیدا شد!`);
+                    log('success', `محصول "${foundProject.KhodroTitle}" با الگوریتم ترکیبی پیدا شد!`);
                     stopContinuousProductSearch();
                     currentOrderData.selectedProject = foundProject;
                     displayMessage(`محصول "${foundProject.KhodroTitle}" پیدا و انتخاب شد.`, 'success');
@@ -1018,7 +1034,6 @@
         return; }
         if(!checkSmsCooldownOnLoad()){ displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn'); return;
         }
-        // NEW LOGIC: این تابع requestAndHandleSms اکنون همیشه True برمی‌گرداند و پولینگ را شروع می‌کند.
         await requestAndHandleSms(true);
     }
 
@@ -1034,7 +1049,7 @@
 
         const captchaCode = uiElements.captchaInput.value.trim();
         const smsCode = uiElements.smsInput.value.trim();
-        const activeConfig = getActiveConfig(); // NEW: دریافت تنظیمات فعال
+        const activeConfig = getActiveConfig();
 
         if (!captchaCode || !smsCode) {
             displayMessage('کپچا و کد SMS هر دو باید پر شوند.', 'error');
@@ -1054,7 +1069,6 @@
         if (!currentOrderData.orderDetails) {
             displayMessage('اطلاعات سفارش یافت نشد! فرآیند مجدداً آغاز می‌شود.', 'error');
             currentOrderData.isSubmittingOrderProcess = false;
-            // NEW: استفاده از تأخیرهای تلاش مجدد از activeConfig
             setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
             return;
         }
@@ -1070,7 +1084,6 @@
             displayMessage(`ثبت نهایی ناموفق: ${addOrderResponse.error}.`, 'error');
             log('error', 'ثبت نهایی ناموفق بود. پاسخ سرور:', addOrderResponse);
             log('warn', `کپچای ارسال شده: ${captchaCode}, کد پیامک ارسال شده: ${smsCode}. فرآیند مجدداً آغاز می‌شود.`);
-            // NEW: استفاده از تأخیرهای ثبت ناموفق از activeConfig
             const delay = getRandomDelay(activeConfig.minSubmitFailedDelayMs, activeConfig.maxSubmitFailedDelayMs);
             displayMessage(`فرآیند تا ${delay / 1000} ثانیه دیگر به صورت خودکار مجدداً آغاز می‌شود...`, 'info');
             currentOrderData.isSubmittingOrderProcess = false;
@@ -1102,7 +1115,7 @@
     }
 
     // =====================================================================================
-    // --- 🚀 SCRIPT INITIALIZATION & ENTRY POINT ---
+    // --- � SCRIPT INITIALIZATION & ENTRY POINT ---
     // =====================================================================================
     function ensureUIExists() {
         if (!document.getElementById('ikd-bot-trigger-btn')) { createTriggerButton();
@@ -1112,7 +1125,7 @@
     }
 
     function initializeScript() {
-        log('info', `Script initializing (${CONFIG.botVersion} Compact Product Card).`);
+        log('info', `Script initializing (${CONFIG.botVersion}).`);
         selectedSolver = GM_getValue('selectedSolver', 'solver-2');
         mobileNumber = GM_getValue('savedMobileNumber', CONFIG.defaultMobileNumber);
         log('info', `حل‌کننده کپچای انتخاب شده: ${selectedSolver}`);
@@ -1192,7 +1205,6 @@
             align-items: center; gap: 8px; font-size: 0.85rem; color: var(--theme-light-gray); }
             .header-info-item svg { color: var(--theme-primary);
             }
-            /* Adjusted for clock and version in one line */
             #live-clock-and-version {
                 direction: ltr;
                 font-family: monospace; /* For better readability of time/version */
@@ -1225,7 +1237,6 @@
             }
             .action-btn:disabled{background: #555c63 !important;
             color:#868e96!important;cursor:not-allowed;transform:none;box-shadow:none;}
-            /* NEW Product Card Styles */
             .items-grid .found-product-card { background-color: rgba(255,255,255,.05);
             border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 20px; padding: 1rem; overflow: hidden; transition: all .3s ease;
             }
@@ -1273,7 +1284,6 @@
             width: auto;}
             .submit-order-btn{margin-top:10px; font-size: 1.1rem;
             padding: 15px;}
-            /* UPDATED Styles for settings layout */
             .settings-section { background-color: rgba(0,0,0,0.2);
             }
             .main-settings-controls { display: flex; gap: 10px;
@@ -1297,25 +1307,23 @@
             }
             .settings-options input[type="radio"] { accent-color: var(--theme-primary);
             }
-            /* Original media query for mobile (mostly a fallback for very narrow views) */
             @media(max-width:767px){
                 .captcha-sms-messages-container{flex-direction:column}
                 .popup-header{padding:10px 15px; flex-direction: column; align-items: flex-start; gap: 10px;}
                 .popup-main-content{padding:15px;gap:15px}
                 .popup-section{padding:15px}
                 .section-title{font-size:17px;margin-bottom:12px}
-                .items-grid .item h4{font-size:16px} /* Note: .item might not exist, but .found-product-card is key */
+                .items-grid .item h4{font-size:16px}
                 .items-grid .item p{font-size:13px}
                 .message{font-size:12px}
             }
 
-            /* Improved Mobile Optimization Styles for all typical mobile screens */
-            @media (max-width: 991px) { /* Adjust this breakpoint if needed, e.g., 767px or 575px */
+            @media (max-width: 991px) {
                 .popup-content-wrapper {
-                    width: calc(100% - 20px) !important; /* Take almost full width with some margin */
+                    width: calc(100% - 20px) !important;
                     margin: 10px !important;
-                    max-height: 98vh !important; /* Keep it slightly smaller than full viewport height */
-                    overflow-y: auto !important; /* Ensure content is scrollable */
+                    max-height: 98vh !important;
+                    overflow-y: auto !important;
                 }
                 .popup-header {
                     flex-direction: column !important;
@@ -1363,10 +1371,10 @@
                 }
                 .items-grid .found-product-card {
                     flex-direction: column !important;
-                    align-items: center !important; /* Center items in card for better look on small screens */
+                    align-items: center !important;
                     gap: 15px !important;
                     padding: 1rem !important;
-                    text-align: center !important; /* Center text within the card */
+                    text-align: center !important;
                 }
                 .found-product-image {
                     width: 100% !important;
@@ -1414,13 +1422,12 @@
                     gap: 8px !important;
                 }
 
-                /* NEW Collapsible styles for mobile */
                 .collapsible-toggle {
-                    display: flex !important; /* Show on mobile */
+                    display: flex !important;
                     width: 100% !important;
                     justify-content: space-between !important;
                     align-items: center !important;
-                    background: none !important; /* Remove section-title background */
+                    background: none !important;
                     border: none !important;
                     cursor: pointer !important;
                     padding: 10px 0 !important;
@@ -1429,7 +1436,7 @@
                     font-weight: 500 !important;
                     border-bottom: 1px solid rgba(255,255,255,.15) !important;
                     margin-bottom: 1rem !important;
-                    text-align: right !important; /* For Persian text */
+                    text-align: right !important;
                 }
                 .collapsible-toggle .collapse-icon {
                     display: inline-block !important;
@@ -1439,29 +1446,27 @@
                     border-right: 5px solid transparent !important;
                     border-top: 5px solid var(--theme-primary) !important;
                     transition: transform 0.3s ease !important;
-                    margin-right: 8px !important; /* Space between text and icon */
+                    margin-right: 8px !important;
                 }
                 .collapsible-toggle.open .collapse-icon {
                     transform: rotate(180deg) !important;
                 }
-                /* Removed !important from display here, so JS can control it */
                 .collapsible-content {
-                    display: none; /* Hidden by default on mobile, JS will change this */
-                    padding-top: 10px !important; /* Add some space from the toggle */
-                    border-top: none !important; /* Remove redundant border */
+                    display: none;
+                    padding-top: 10px !important;
+                    border-top: none !important;
                 }
             }
 
-            /* Ensure settings are always open on desktop */
             @media (min-width: 992px) {
                 .collapsible-toggle {
-                    display: none !important; /* Hide on desktop */
+                    display: none !important;
                 }
                 .collapsible-content {
-                    display: block !important; /* Always show on desktop */
+                    display: block !important;
                     padding-top: 0 !important;
                 }
-                .settings-section .section-title { /* Restore desktop section title styles */
+                .settings-section .section-title {
                     display: block !important;
                     margin:0 0 1rem !important;
                     color:var(--theme-primary) !important;
@@ -1469,7 +1474,7 @@
                     padding-bottom:10px !important;
                     font-size:1.1rem !important;
                     font-weight:500 !important;
-                    cursor: default !important; /* Remove pointer cursor */
+                    cursor: default !important;
                 }
             }
         `);
