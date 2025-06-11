@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         irankhodrodisel-neumorphic
+// @name         irankhodrodisel
 // @namespace    http://tampermonkey.net/
 // @version      2025-06-13.03-stable-final-neumorphic
 // @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha. Improved mobile responsiveness and collapsible settings, and refined product search logic with advanced text normalization and selection. This version features a dark mode with neumorphic accents and a fixed layout for message/captcha boxes.
@@ -43,7 +43,7 @@
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
-        botVersion: 'v4.4.0-Neumorphic', // Updated version name
+        botVersion: 'v5.0.0', // Updated version name
 
         fixedDelays: {
             // تأخیر قبل از ارسال درخواست‌های API اصلی
