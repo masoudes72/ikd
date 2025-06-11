@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         irankhodrodisel
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-13.03-stable-final-neumorphic
+// @version      2025-06-13.03
 // @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha. Improved mobile responsiveness and collapsible settings, and refined product search logic with advanced text normalization and selection. This version features a dark mode with neumorphic accents and a fixed layout for message/captcha boxes.
 // @author       Masoud
 // @match        https://esale.ikd.ir/*
