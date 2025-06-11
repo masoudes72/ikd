@@ -1,12 +1,13 @@
 // ==UserScript==
-// @name         irankhodrodisel
+// @name         irankhodrodisel-neumorphic
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-12.23-hybrid-search
-// @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha. Improved mobile responsiveness and collapsible settings, and refined product search logic with advanced text normalization and selection.
+// @version      2025-06-13.03-stable-final-neumorphic
+// @description  Redesigned the found product card to be more compact, modern, and visually appealing. Added scroll to captcha. Improved mobile responsiveness and collapsible settings, and refined product search logic with advanced text normalization and selection. This version features a dark mode with neumorphic accents and a fixed layout for message/captcha boxes.
 // @author       Masoud
 // @match        https://esale.ikd.ir/*
 // @icon         https://esale.ikd.ir/logo.png
 // @grant        GM_addStyle
+// @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_info
@@ -27,50 +28,48 @@
         relayServerBaseUrl: 'https://smsikd.sipa-solver.shop',
         remoteSolverUrl1: 'https://ikd.sipa-solver.shop/solve_captcha',
         remoteSolverUrl2: 'https://oikd.sipa-solver.shop/solve',
-        defaultMobileNumber: '09000000000', // This is now a fallback
+        defaultMobileNumber: '09000000000',
 
         smsCooldownMinutes: 5,
-        apiRetryDelayMs: 4000, // این مقدارها اکنون با autoSolverConfig/manualInputConfig جایگزین می‌شوند
-
         searchPollingIntervalMs: 2500,
         smsRelayPollingIntervalMs: 1500,
-        failedSubmitDelayMs: 5000, // این مقدارها اکنون با autoSolverConfig/manualInputConfig جایگزین می‌شوند
         logoImageUrl: 'https://esale.ikd.ir/logo.png',
         closeIconText: '&times;',
         triggerButtonText: 'فعال‌سازی ربات',
         popupSearchPlaceholder: 'نام دقیق محصول مورد نظر',
         startContinuousSearchText: 'شروع جستجوی مستمر',
         stopContinuousSearchText: 'توقف جستجو',
-
         manualSmsButtonText: 'کد SMS دستی',
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
         saveMobileButtonText: 'ذخیره',
         updateButtonText: 'به‌روزرسانی',
-        botVersion: 'v4.3.0', // نسخه به‌روزرسانی شده
+        botVersion: 'v4.4.0-Neumorphic', // Updated version name
 
-        // NEW: مجموعه تنظیمات برای حالت حل خودکار (Auto Solver)
-        autoSolverConfig: {
-            minApiDelayMs: 200,    // حداقل تأخیر قبل از فراخوانی‌های API در حالت خودکار
-            maxApiDelayMs: 600,    // حداکثر تأخیر قبل از فراخوانی‌های API در حالت خودکار
-            minRetryDelayMs: 1500, // حداقل تأخیر برای تلاش‌های مجدد API در حالت خودکار (عمومی برای API)
-            maxRetryDelayMs: 4000, // حداکثر تأخیر برای تلاش‌های مجدد API در حالت خودکار (عمومی برای API)
-            minSubmitFailedDelayMs: 2000, // حداقل تأخیر پس از ثبت نهایی ناموفق در حالت خودکار
-            maxSubmitFailedDelayMs: 5000, // حداکثر تأخیر پس از ثبت نهایی ناموفق در حالت خودکار
-            // تأخیرهای خاص برای تلاش‌های حل کپچا
-            minCaptchaRetryDelayMs: 500,
-            maxCaptchaRetryDelayMs: 1500,
-            solverOrder: ['solver-2', 'solver-1'], // ترتیب ترجیحی سرورهای حل کننده
-            maxCaptchaSolveRetries: 3 // تعداد تلاش مجدد برای حل کپچا توسط سرور
+        fixedDelays: {
+            // تأخیر قبل از ارسال درخواست‌های API اصلی
+            apiDelayMs: 3000,
+            // تأخیر هنگام تلاش مجدد پس از خطای عمومی
+            retryDelayMs: 500,
+            // تأخیر هنگام تلاش مجدد پس از خطای ثبت سفارش
+            submitFailedDelayMs: 500,
+            // تأخیر بین تلاش‌های مجدد برای حل کپچا
+            captchaRetryDelayMs: 500,
+            // تأخیر برای شبیه‌سازی کلیک
+            clickDelayMs: 150
         },
 
-        // NEW: مجموعه تنظیمات برای حالت دستی (Manual Input)
+        autoSolverConfig: {
+            solverOrder: ['solver-2', 'solver-1'],
+            maxCaptchaSolveRetries: 3
+        },
+
         manualInputConfig: {
-            minApiDelayMs: 50,     // حداقل تأخیر قبل از فراخوانی‌های API در حالت دستی
-            maxApiDelayMs: 200,    // حداکثر تأخیر قبل از فراخوانی‌های API در حالت دستی
-            minRetryDelayMs: 500,  // حداقل تأخیر برای تلاش‌های مجدد API در حالت دستی
-            maxRetryDelayMs: 2000, // حداکثر تأخیر برای تلاش‌های مجدد API در حالت دستی
-            minSubmitFailedDelayMs: 1000, // حداقل تأخیر پس از ثبت نهایی ناموفق در حالت دستی
-            maxSubmitFailedDelayMs: 3000, // حداکثر تأخیر پس از ثبت نهایی ناموفق در حالت دستی
+            minApiDelayMs: 50,
+            maxApiDelayMs: 200,
+            minRetryDelayMs: 500,
+            maxRetryDelayMs: 2000,
+            minSubmitFailedDelayMs: 1000,
+            maxSubmitFailedDelayMs: 3000,
         }
     };
     const API_ENDPOINTS_IKD = {
@@ -86,34 +85,41 @@
     let authToken = "";
     let uiElements = {};
     let mobileNumber = CONFIG.defaultMobileNumber;
-    let currentOrderData = { captchaAutoFilled: false, smsAutoFilled: false, isSubmittingOrderProcess: false, captchaToken: null, selectedProject: null, captchaCode: null, smsCode: null, stopProcess: false, orderDetails: null };
+    let currentOrderData = {};
     let smsRelayPollingTimeoutId = null;
     let mainProcessTimeoutId = null;
     let smsCooldownInterval = null;
     let productSearchPollingTimeoutId = null;
     let isContinuousSearchingProduct = false;
-    let selectedSolver = 'solver-2'; // مقدار پیش‌فرض که از GM_getValue بارگذاری می‌شود
+    let selectedSolver = 'solver-2';
+    const getSimulatedHeaders = (refererPage, withPriority) => {
 
-    const getSimulatedHeaders = (refererPage = 'products') => ({
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'authorization': `Bearer ${authToken}`,
-        'Connection': 'keep-alive',
-        'Origin': 'https://esale.ikd.ir',
-        'Referer': `${window.location.origin}/${refererPage}`,
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-        'User-Agent': navigator.userAgent,
-        'Priority': 'u=0',
-    });
-    // NEW: تابع کمکی برای دریافت تنظیمات فعال بر اساس حالت حل‌کننده
-    function getActiveConfig() {
-        if (selectedSolver === 'solver-none') {
-            return CONFIG.manualInputConfig;
+        let refererUrl;
+        if (refererPage === 'products') {
+            refererUrl = 'https://esale.ikd.ir/products';
         } else {
-            return CONFIG.autoSolverConfig;
+            refererUrl = 'https://esale.ikd.ir/addOrder';
         }
+
+        const headers = {
+            'User-Agent': navigator.userAgent,
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'authorization': `Bearer ${authToken}`,
+            'Origin': 'https://esale.ikd.ir',
+            'Connection': 'keep-alive',
+            'Referer': refererUrl,
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+        };
+        if (withPriority) {
+            headers['Priority'] = 'u=0';
+        }
+        return headers;
+    };
+    function getActiveConfig() {
+        return selectedSolver === 'solver-none' ? CONFIG.manualInputConfig : CONFIG.autoSolverConfig;
     }
 
     window.onerror = function(message, source, lineno, colno, error) {
@@ -123,7 +129,7 @@
         }
         setTimeout(() => {
             if (currentOrderData.selectedProject && !currentOrderData.isSubmittingOrderProcess) {
-                 startOrderProcess();
+                startOrderProcess();
             }
         }, getRandomDelay(getActiveConfig().minRetryDelayMs, getActiveConfig().maxRetryDelayMs));
         return true;
@@ -132,30 +138,10 @@
     // =====================================================================================
     // --- 🛠️ UTILITY FUNCTIONS ---
     // =====================================================================================
-
-    /**
-     * Normalizes text for search by converting to lowercase, handling Persian characters,
-     * replacing ZWNJ with space, and removing specific non-alphanumeric characters.
-     * @param {string} text The input text to normalize.
-     * @returns {string} The normalized text.
-     */
     function normalizeTextForSearch(text) {
         if (!text) return '';
-        return text
-            .toString() // Ensure it's a string
-            .toLowerCase()
-            // Replace specific Persian characters with their common counterparts
-            .replace(/[ي]/g, 'ی') // Arabic Yeh to Persian Yeh
-            .replace(/[ك]/g, 'ک') // Arabic Kaf to Persian Kaf
-            // Replace zero-width non-joiner (نیم‌فاصله) with a space to ensure word separation
-            .replace(/\u200C/g, ' ')
-            // Replace special characters with a space instead of removing them
-            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-            // Replace multiple spaces with a single space
-            .replace(/\s+/g, ' ')
-            .trim();
+        return text.toString().toLowerCase().replace(/[ي]/g, 'ی').replace(/[ك]/g, 'ک').replace(/\u200C/g, ' ').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
     }
-
 
     function log(type, message, data) {
         const prefix = { info: '[INFO]', error: '[ERROR]', success: '[موفق]', warn: '[هشدار]', debug: '[DEBUG]' }[type] || '[LOG]';
@@ -209,23 +195,12 @@
         }
     }
 
-    // START: HYBRID SEARCH LOGIC PROVIDED BY USER
-    /**
-    * Find the closest matching project based on a search term
-    * using a hybrid similarity algorithm (Levenshtein + Damerau-Levenshtein + Jaccard).
-    *
-    * @param {string} searchTerm - The term to search for.
-    * @param {Array} saleProjects - List of project objects with Id, Title, and KhodroTitle.
-    * @returns {Object|null} The closest matching project.
-    */
     function findClosestMatch(searchTerm, saleProjects) {
         if (!searchTerm || !Array.isArray(saleProjects) || saleProjects.length === 0) {
-            // Throwing an error might stop the script, returning null is safer for a userscript
             return null;
         }
 
         const normalizedSearchTerm = normalizeTextForSearch(searchTerm);
-
         function levenshteinDistance(str1, str2) {
             const len1 = str1.length, len2 = str2.length;
             const dp = Array.from({ length: len1 + 1 }, () => Array(len2 + 1).fill(0));
@@ -233,11 +208,7 @@
             for (let j = 0; j <= len2; j++) dp[0][j] = j;
             for (let i = 1; i <= len1; i++) {
                 for (let j = 1; j <= len2; j++) {
-                    if (str1[i - 1] === str2[j - 1]) {
-                        dp[i][j] = dp[i - 1][j - 1];
-                    } else {
-                        dp[i][j] = Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
-                    }
+                    dp[i][j] = str1[i - 1] === str2[j - 1] ? dp[i - 1][j - 1] : Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
                 }
             }
             return dp[len1][len2];
@@ -280,48 +251,95 @@
 
         let bestMatch = null;
         let highestScore = -Infinity;
-
         for (const project of saleProjects) {
             const combinedTitle = `${project.Title || ''} ${project.KhodroTitle || ''}`;
             if (!combinedTitle) continue;
-
-            // Use the robust normalizer for the project title as well
             const normalizedCombinedTitle = normalizeTextForSearch(combinedTitle);
-
             const levDist = levenshteinDistance(normalizedSearchTerm, normalizedCombinedTitle);
             const damLevDist = damerauLevenshtein(normalizedSearchTerm, normalizedCombinedTitle);
             const jaccardScore = jaccardSimilarity(normalizedSearchTerm, normalizedCombinedTitle);
             const ngramScore = nGramSimilarity(normalizedSearchTerm, normalizedCombinedTitle);
-
             const maxLen = Math.max(normalizedSearchTerm.length, normalizedCombinedTitle.length);
             const normalizedLev = maxLen === 0 ? 1 : 1 - (levDist / maxLen);
             const normalizedDamLev = maxLen === 0 ? 1 : 1 - (damLevDist / maxLen);
-
-            const finalScore = (
-                normalizedLev * 0.35 +
-                normalizedDamLev * 0.35 +
-                jaccardScore * 0.2 +
-                ngramScore * 0.1
-            );
-
-            console.log(`🔍 Checking: "${normalizedCombinedTitle}"`);
-            console.log(`   🔹 Final Score: ${finalScore}`);
-
+            const finalScore = (normalizedLev * 0.35 + normalizedDamLev * 0.35 + jaccardScore * 0.2 + ngramScore * 0.1);
             if (finalScore > highestScore) {
                 highestScore = finalScore;
-                bestMatch = project; // Store the entire project object
+                bestMatch = project;
             }
         }
         return bestMatch;
     }
-    // END: HYBRID SEARCH LOGIC
+
+    // --- Simulate Typing Function (ONLY for CAPTCHA now) ---
+    // --- تابع جدید برای درج آنی مقدار ---
+    async function simulateTyping(element, text) {
+        if (!element) return;
+
+        // 1. فوکوس روی کادر ورودی
+        element.focus();
+
+        // 2. درج آنی مقدار کامل
+        element.value = text;
+
+        // 3. ارسال رویدادها برای اینکه سایت متوجه تغییر شود
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // 4. برداشتن فوکوس از کادر
+        element.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+
+    // --- NEW FUNCTION: Simulate Click ---
+    async function simulateClick(element, minDelay = 150, maxDelay = 250) {
+        if (!element) {
+            log('warn', 'تلاش برای شبیه‌سازی کلیک روی المان نامعتبر.');
+            return;
+        }
+
+        // تمرکز (focus) روی المان قبل از کلیک (رفتار طبیعی کاربر)
+        if (typeof element.focus === 'function') {
+            element.focus();
+            await sleep(getRandomDelay(minDelay / 2, maxDelay / 2)); // مکث کوتاه بعد از فوکوس
+        }
+
+        // شبیه سازی mouseDown
+        element.dispatchEvent(new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true
+            // view: window // این خط را حذف کنید
+        }));
+        await sleep(getRandomDelay(minDelay, maxDelay)); // مکث بین mousedown و mouseup
+
+        // شبیه سازی mouseup
+        element.dispatchEvent(new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true
+            // view: window // این خط را حذف کنید
+        }));
+        await sleep(getRandomDelay(minDelay, maxDelay)); // مکث بین mouseup و click
+
+        // شبیه سازی click
+        element.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true
+            // view: window // این خط را حذف کنید
+        }));
+        await sleep(getRandomDelay(minDelay, maxDelay)); // مکث کوتاه بعد از کلیک
+
+        // از دست دادن تمرکز (blur) بعد از کلیک (رفتار طبیعی کاربر)
+        if (typeof element.blur === 'function') {
+            element.blur();
+        }
+    }
+
 
     // =====================================================================================
     // --- 📞 API CALL FUNCTIONS ---
     // =====================================================================================
     async function getSaleProjectsFromIKD() {
         try {
-            const headers = { ...getSimulatedHeaders('products'), 'Content-Type': 'application/json' };
+            const headers = { ...getSimulatedHeaders('products', false), 'Content-Type': 'application/json; charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.getSaleProjects, {}, { headers });
             return { success: true, data: response.data };
         } catch (error) {
@@ -332,11 +350,12 @@
     async function getOrderDetailsFromIKD(projectData) {
         const payload = { idDueDeliverProg: projectData.IdDueDeliverProg };
         try {
-            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
+            const headers = { ...getSimulatedHeaders('addOrder', true), 'Content-Type': 'application/json; charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.readSefareshInfo, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && response.data.rows?.length) {
                 const randomRow = response.data.rows[Math.floor(Math.random() * response.data.rows.length)];
-                return { success: true, data: { agencyId: response.data.idAgencyCode, selectedUsage: response.data.usages?.[0]?.value || null, selectedColor: response.data.colors?.[0]?.value || null, agency: randomRow, } };
+                // در اینجا agencyId از خود نمایندگی رندوم برداشته می‌شود
+                return { success: true, data: { agencyId: randomRow.value, selectedUsage: response.data.usages?.[0]?.value || null, selectedColor: response.data.colors?.[0]?.value || null, agency: randomRow, } };
             }
             return { success: false, error: response.data.message || 'اطلاعات نمایندگی دریافت نشد.' };
         } catch (error) {
@@ -344,10 +363,11 @@
         }
     }
 
-    async function getCaptchaOrderFromIKD(cardId) {
-        const payload = { "captchaName": "Order", "token": "", "captchaId": parseInt(cardId), "apiId": "06290E83-E12E-4910-9C12-942F78131CE6" };
+    async function getCaptchaOrderFromIKD(cardId, previousToken = "") {
+        const payload = { "captchaName": "Order", "token": previousToken, "captchaId": parseInt(cardId), "apiId": "06290E83-E12E-4910-9C12-942F78131CE6" };
         try {
-            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json;   charset=UTF-8' };
+            const hasPriority = !previousToken;
+            const headers = { ...getSimulatedHeaders('addOrder', hasPriority), 'Content-Type': 'application/json;   charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.getCaptchaOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0 && (response.data.dataImage || response.data.capchaData)) {
                 return { success: true, data: response.data };
@@ -368,11 +388,10 @@
         }
         const payload = { smsType: "Order", systemCode: "SaleInternet", idDueDeliverProg: currentOrderData.selectedProject?.IdDueDeliverProg };
         try {
-            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
+            const headers = { ...getSimulatedHeaders('addOrder', true), 'Content-Type': 'application/json; charset=UTF-8' };
             const response = await axios.post(API_ENDPOINTS_IKD.sendSmsOrder, payload, { headers, withCredentials: true });
             if (response.data && response.data.statusResult === 0) {
-                const successTime = Date.now();
-                localStorage.setItem(CONFIG.smsTimestampKey, successTime);
+                localStorage.setItem(CONFIG.smsTimestampKey, Date.now());
                 return { success: true };
             }
             return { success: false, error: response.data.message || "خطا در ارسال SMS" };
@@ -382,10 +401,12 @@
     }
 
     async function addOrderToIKD(orderPayload) {
-        const activeConfig = getActiveConfig();
-        await sleep(getRandomDelay(activeConfig.minApiDelayMs, activeConfig.maxApiDelayMs));
+        await sleep(CONFIG.fixedDelays.apiDelayMs);
         try {
-            const headers = { ...getSimulatedHeaders('addOrder'), 'Content-Type': 'application/json; charset=UTF-8' };
+            const headers = { ...getSimulatedHeaders('addOrder', true), 'Content-Type': 'application/json; charset=UTF-8' };
+            console.log("--- آماده‌سازی برای ارسال addSefaresh ---");
+            console.log("مقدار Referer که به axios ارسال می‌شود:", headers.Referer);
+            console.log("شیء کامل هدرها:", headers);
             const r = await axios.post(API_ENDPOINTS_IKD.addSefaresh, orderPayload, { headers, withCredentials: true });
             if (r.data && r.data.identity) {
                 const f = document.createElement('form');
@@ -399,9 +420,8 @@
                 document.body.appendChild(f);
                 f.submit();
                 return { success: true };
-            } else {
-                return { success: false, error: r.data.message || "خطا در ثبت نهایی سفارش" };
             }
+            return { success: false, error: r.data.message || "خطا در ثبت نهایی سفارش" };
         } catch (e) {
             return handleApiError(e, 'addOrderToIKD');
         }
@@ -409,53 +429,31 @@
 
     async function solveCaptcha(captchaData) {
         const captchaFile = captchaDataToFile(captchaData);
-        if (!captchaFile) {
-            return { success: false, error: "فایل کپچا برای حل موجود نیست." };
-        }
-
+        if (!captchaFile) return { success: false, error: "فایل کپچا برای حل موجود نیست." };
         const activeConfig = getActiveConfig();
-        const solversToTry = [];
         const definedSolvers = {
             'solver-1': { name: 'سرور ۱ (عمومی)', url: CONFIG.remoteSolverUrl1 },
             'solver-2': { name: 'سرور ۲ (شخصی)', url: CONFIG.remoteSolverUrl2 }
         };
-        if (activeConfig.solverOrder && Array.isArray(activeConfig.solverOrder)) {
-            for (const solverKey of activeConfig.solverOrder) {
-                if (definedSolvers[solverKey] && definedSolvers[solverKey].url) {
-                    solversToTry.push(definedSolvers[solverKey]);
-                }
-            }
-        } else if (selectedSolver !== 'solver-none' && definedSolvers[selectedSolver] && definedSolvers[selectedSolver].url) {
-            solversToTry.push(definedSolvers[selectedSolver]);
-        }
-
-
-        if (solversToTry.length === 0) {
-             return { success: false, error: "حل‌کننده انتخاب شده در دسترس نیست یا تنظیم نشده است." };
-        }
-
+        const solversToTry = activeConfig.solverOrder?.map(key => definedSolvers[key]).filter(Boolean) || (definedSolvers[selectedSolver] ? [definedSolvers[selectedSolver]] : []);
+        if (solversToTry.length === 0) return { success: false, error: "حل‌کننده انتخاب شده در دسترس نیست یا تنظیم نشده است." };
         for (const solver of solversToTry) {
             try {
                 log('info', `تلاش برای حل کپچا با سرور: ${solver.name}`);
                 const formData = new FormData();
                 formData.append('file', captchaFile);
-
-                const response = await axios.post(solver.url, formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                    timeout: 15000
-                });
+                const response = await axios.post(solver.url, formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 15000 });
                 const answer = response.data?.answer || response.data?.solved_value || response.data?.solve || (typeof response.data === 'string' && response.data);
                 if (answer) {
-                    log('success', `حل‌کننده ${solver.name} پاسخ داد: ${answer}`);
-                    return { success: true, answer: String(answer) };
-                } else {
-                    log('warn', `پاسخ از حل‌کننده ${solver.name} نامعتبر است.`, response.data);
+                    const lowerCaseAnswer = String(answer).toLowerCase();
+                    log('success', `حل‌کننده ${solver.name} پاسخ داد: ${lowerCaseAnswer}`);
+                    return { success: true, answer: lowerCaseAnswer };
                 }
+                log('warn', `پاسخ از حل‌کننده ${solver.name} نامعتبر است.`, response.data);
             } catch (e) {
                 log('warn', `حل‌کننده ${solver.name} با خطا مواجه شد.`);
             }
         }
-
         return { success: false, error: 'هیچ‌کدام از حل‌کننده‌ها موفق به پاسخ نشدند.' };
     }
 
@@ -468,7 +466,7 @@
             }
             return { success: false, error: response.data.message || 'کد SMS یافت نشد.' };
         } catch (error) {
-            if (error.response && error.response.status === 404) return { success: false, error: 'کد SMS هنوز موجود نیست.' };
+            if (error.response?.status === 404) return { success: false, error: 'کد SMS هنوز موجود نیست.' };
             return handleApiError(error, 'getLastSmsFromRelayServer');
         }
     }
@@ -480,27 +478,15 @@
         if (document.getElementById('ikd-bot-trigger-btn')) return;
         const b = document.createElement('button');
         b.id = 'ikd-bot-trigger-btn';
-        b.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M12.17 9.53c2.307-2.592 3.278-4.684 3.641-6.218.21-.887.214-1.58.16-2.065a3.578 3.578 0 0 0-.108-.523.5.5 0 0 0-.048-.095.35.35 0 0 0-.06-.064.5.5 0 0 0-.098-.045c-.235-.073-.55-.13-.9-.13a.6.6 0 0 0-.25.038.5.5 0 0 0-.256.235c-.058.088-.12.193-.186.311.034.025.069.052.102.083.212.198.39.43.538.695.14.25.25.514.326.791.072.26.126.54.162.833.036.294.053.62.053.966.001.345-.016.68-.053.986-.034.277-.087.556-.16.837-.074.282-.182.564-.32.83-.134.258-.31.503-.51.732a.5.5 0 0 0-.023.029c-.19.224-.39.423-.604.59.043.023.086.046.128.069.135.073.28.132.43.176.15.044.31.075.472.092.164.017.33.02.498.006.17-.014.336-.04.5-.078.163-.038.324-.087.478-.145.155-.057.306-.126.45-.204.145-.078.285-.164.418-.258.134-.094.26-.2.38-.314.12-.114.23-.234.332-.36.103-.125.196-.258.28-.396.084-.138.16-.28.226-.425a.5.5 0 0 0-.12-.63Z"/>
-                <path d="M9.42 6.136c.215.216.215.564 0 .78l-3.32 3.32a.56.56 0 0 1-.779 0l-1.56-1.56a.56.56 0 0 1 0-.78l3.32-3.32a.56.56 0 0 1 .78 0l1.56 1.56Z"/>
-                <path d="M6.012 10.148.446 15.71c-.534.534-.075 1.485.656 1.485.434 0 .86-.19 1.14-.47l4.528-4.528a.56.56 0 0 1 .78 0l1.56 1.56a.56.56 0 0 1 0 .78l-4.528 4.528c-.28.28-.706.47-1.14.47-.73 0-1.19-.95-6.56-1.484a.5.5 0 0 1-.47-.66L5.232 10.93a.56.56 0 0 1 .78 0Z"/>
-            </svg>
-            <span>${CONFIG.triggerButtonText}</span>
-        `;
+        b.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M12.17 9.53c2.307-2.592 3.278-4.684 3.641-6.218.21-.887.214-1.58.16-2.065a3.578 3.578 0 0 0-.108-.523.5.5 0 0 0-.048-.095.35.35 0 0 0-.06-.064.5.5 0 0 0-.098-.045c-.235-.073-.55-.13-.9-.13a.6.6 0 0 0-.25.038.5.5 0 0 0-.256.235c-.058.088-.12.193-.186.311.034.025.069.052.102.083.212.198.39.43.538.695.14.25.25.514.326.791.072.26.126.54.162.833.036.294.053.62.053.966.001.345-.016.68-.053.986-.034.277-.087.556-.16.837-.074.282-.182.564-.32.83-.134.258-.31.503-.51.732a.5.5 0 0 0-.023.029c-.19.224-.39.423-.604.59.043.023.086.046.128.069.135.073.28.132.43.176.15.044.31.075.472.092.164.017.33.02.498.006.17-.014.336-.04.5-.078.163-.038.324-.087.478-.145.155-.057.306-.126.45-.204.145-.078.285-.164.418-.258.134-.094.26-.2.38-.314.12-.114.23-.234.332-.36.103-.125.196-.258.28-.396.084-.138.16-.28.226-.425a.5.5 0 0 0-.12-.63Z"/><path d="M9.42 6.136c.215.216.215.564 0 .78l-3.32 3.32a.56.56 0 0 1-.779 0l-1.56-1.56a.56.56 0 0 1 0-.78l3.32-3.32a.56.56 0 0 1 .78 0l1.56 1.56Z"/><path d="M6.012 10.148.446 15.71c-.534.534-.075 1.485.656 1.485.434 0 .86-.19 1.14-.47l4.528-4.528a.56.56 0 0 1 .78 0l1.56 1.56a.56.56 0 0 1 0 .78l-4.528 4.528c-.28.28-.706.47-1.14.47-.73 0-1.19-.95-6.56-1.484a.5.5 0 0 1-.47-.66L5.232 10.93a.56.56 0 0 1 .78 0Z"/></svg><span>${CONFIG.triggerButtonText}</span>`;
         document.body.appendChild(b);
-        b.addEventListener('click', () => {
-            if (uiElements.mainPopup) {
-                uiElements.mainPopup.style.display = 'flex';
-                resetPopupUI();
-            }
-        });
+        b.addEventListener('click', () => { if (uiElements.mainPopup) { uiElements.mainPopup.style.display = 'flex'; resetPopupUI(); } });
     }
 
     function resetPopupUI() {
         if (isContinuousSearchingProduct) stopContinuousProductSearch();
         stopMainProcess();
-        currentOrderData = { captchaAutoFilled: false, smsAutoFilled: false, isSubmittingOrderProcess: false, captchaToken: null, selectedProject: null, captchaCode: null, smsCode: null, stopProcess: false, orderDetails: null };
+        currentOrderData = { captchaAutoFilled: false, smsAutoFilled: false, isSubmittingOrderProcess: false, captchaToken: null, selectedProject: null, captchaCode: null, smsCode: null, stopProcess: false, orderDetails: null, initialSmsRequestSent: false };
         if (uiElements.initialSearchSection) uiElements.initialSearchSection.style.display = 'flex';
         if (uiElements.searchResultsSection) uiElements.searchResultsSection.style.display = 'none';
         if (uiElements.captchaSmsContainer) uiElements.captchaSmsContainer.style.display = 'none';
@@ -510,20 +496,12 @@
         if (uiElements.smsInput) uiElements.smsInput.value = '';
         if (uiElements.startSearchButton) { uiElements.startSearchButton.disabled = false; uiElements.startSearchButton.textContent = CONFIG.startContinuousSearchText; }
         if (uiElements.submitOrderButton) uiElements.submitOrderButton.disabled = true;
-        // Hide mobile input panel on reset
         if (uiElements.mobileInputPanel) uiElements.mobileInputPanel.style.display = 'none';
         checkSmsCooldownOnLoad();
-
-        // NEW: Reset collapsible settings state based on mobile view
         if (uiElements.settingsContent && uiElements.toggleSettingsButton) {
             const isMobileView = window.matchMedia("(max-width: 991px)").matches;
-            if (isMobileView) {
-                uiElements.settingsContent.style.display = 'none'; // Hide on mobile
-                uiElements.toggleSettingsButton.classList.remove('open');
-            } else {
-                uiElements.settingsContent.style.display = 'block'; // Show on desktop
-                uiElements.toggleSettingsButton.classList.add('open'); // Add open class for desktop (no icon needed)
-            }
+            uiElements.settingsContent.style.display = isMobileView ? 'none' : 'block';
+            uiElements.toggleSettingsButton.classList.toggle('open', !isMobileView);
         }
     }
 
@@ -539,61 +517,79 @@
                 <div class="popup-header-left">
                     <img src="${CONFIG.logoImageUrl}" alt="لوگو" class="popup-logo"/>
                     <h2 class="popup-title">ربات خرید ایران‌خودرو دیزل</h2>
+
                 </div>
                 <div class="popup-header-right">
                     <div class="header-info-item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-phone-fill" viewBox="0 0 16 16"><path d="M3 2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V2zm6 11a1 1 0 1 0-2 0 1 1 0 0 0 2 0z"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-phone-fill" viewBox="0 0 16 16"><path d="M3 2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V2zm6 11a1
+1 0 1 0-2 0 1 1 0 0 0 2 0z"/></svg>
                         <span id="user-display-name">${mobileNumber}</span>
                     </div>
                     <div class="header-info-item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clock-fill" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"/></svg>
+
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"/></svg>
                         <div id="live-clock-and-version" class="popup-clock">00:00 <span class="bot-version-display">${CONFIG.botVersion}</span></div>
                     </div>
+
                     <button class="popup-close-btn" title="بستن">${CONFIG.closeIconText}</button>
                 </div>
             </div>
             <div class="popup-main-content">
                 <section class="popup-section settings-section">
                     <button class="section-title collapsible-toggle" id="toggle-settings-btn">
-                        ⚙️ تنظیمات و کنترل
+
+                         ⚙️ تنظیمات و کنترل
                         <span class="collapse-icon"></span>
                     </button>
                     <div class="collapsible-content" id="settings-content">
+
                         <div class="main-settings-controls">
                             <button class="action-btn secondary-btn" id="toggle-mobile-panel-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-phone-vibrate" viewBox="0 0 16 16"><path d="M10 3a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4zM6 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6z"/><path d="M8 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM1.586 6.414a.5.5 0 0 1 0 .708L.293 8.414a.5.5 0 0 1-.707-.707l1.293-1.293a.5.5 0 0 1 .707 0zm13.52.707a.5.5 0 0 1-.707 0l-1.293-1.293a.5.5 0 0 1 0-.708l1.293-1.293a.5.5 0 0 1 .707.707L15.106 7.12zM2 9.5a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1H2.5a.5.5 0 0 1-.5-.5zm12 0a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1h-.5a.5.5 0 0 1-.5-.5z"/></svg>
-                                <span>شماره موبایل</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-phone-vibrate" viewBox="0 0 16 16"><path d="M10 3a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1
+1 0 0 1-1-1V4a1 1 0 0 1 1-1h4zM6 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6z"/><path d="M8 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM1.586 6.414a.5.5 0 0 1 0 .708L.293 8.414a.5.5 0 0 1-.707-.707l1.293-1.293a.5.5 0 0 1 .707 0zm13.52.707a.5.5 0 0 1-.707 0l-1.293-1.293a.5.5 0 0 1 0-.708l1.293-1.293a.5.5 0 0 1 .707.707L15.106 7.12zM2 9.5a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1H2.5a.5.5 0 0 1-.5-.5zm12 0a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1h-.5a.5.5 0 0 1-.5-.5z"/></svg>
+
+                               <span>شماره موبایل</span>
                             </button>
                             <button class="action-btn secondary-btn" id="check-update-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-cloud-arrow-down-fill" viewBox="0 0 16 16"><path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 6.854-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 9.293V5.5a.5.5 0 0 1 1 0v3.793l1.146-1.147a.5.5 0 0 1 .708.708z"/></svg>
+
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 6.854-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 9.293V5.5a.5.5 0 0 1 1 0v3.793l1.146-1.147a.5.5 0 0 1 .708.708z"/></svg>
+
                                 <span>${CONFIG.updateButtonText}</span>
                             </button>
                         </div>
                         <div class="settings-panel" id="mobile-input-panel" style="display: none;">
+
                             <label>شماره موبایل برای دریافت SMS را وارد کنید:</label>
                             <div class="settings-input-group">
                                  <input type="text" id="mobile-number-input" class="styled-input" value="${mobileNumber}" />
+
                                  <button class="action-btn secondary-btn" id="save-mobile-btn">${CONFIG.saveMobileButtonText}</button>
                             </div>
                         </div>
+
                         <div class="solver-options-panel">
                             <label class="panel-label">انتخاب حل‌کننده کپچا:</label>
                             <div class="settings-options" id="captcha-solver-settings">
+
                                 <label><input type="radio" name="captcha-solver-option" value="solver-none"> غیرفعال</label>
                                 <label><input type="radio" name="captcha-solver-option" value="solver-1"> عددی</label>
                                 <label><input type="radio" name="captcha-solver-option" value="solver-2"> متنی</label>
+
                             </div>
                         </div>
                     </div>
                 </section>
                 <section class="popup-section initial-search-section">
+
                     <h3 class="section-title">۱. جستجوی خودرو</h3>
                     <div class="search-input-group">
                         <input type="text" id="model-search-input-popup" class="styled-input" placeholder="${CONFIG.popupSearchPlaceholder}" />
                         <button class="action-btn primary-btn" id="start-search-btn-popup">
+
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
                             <span>${CONFIG.startContinuousSearchText}</span>
                         </button>
+
                     </div>
                 </section>
                 <section class="popup-section search-results-section" style="display: none;">
@@ -602,17 +598,21 @@
                 </section>
                 <div class="captcha-sms-messages-container" style="display: none;">
                     <section class="popup-section captcha-sms-box">
+
                         <h3 class="section-title">۳. کپچا و کد SMS</h3>
                         <div class="captcha-image-container" id="captcha-image-display-popup"></div>
                         <input type="text" id="captcha-input-field-popup" class="styled-input captcha-input" placeholder="کد امنیتی (کپچا)" />
                         <div class="sms-input-group">
+
                             <input type="text" id="sms-input-field-popup" class="styled-input sms-input" placeholder="کد SMS" />
                             <button class="action-btn secondary-btn sms-btn" id="get-sms-code-btn-popup">${CONFIG.manualSmsButtonText}</button>
                         </div>
+
                         <button class="action-btn primary-btn submit-order-btn" id="submit-order-btn-popup" disabled>ثبت نهایی سفارش</button>
                     </section>
                     <section class="popup-section messages-box">
                         <h3 class="section-title">پیام‌های سیستم</h3>
+
                         <div class="messages-content" id="system-messages-content-popup"><p class="no-message-exist"></p></div>
                     </section>
                 </div>
@@ -621,12 +621,14 @@
         document.body.appendChild(popup);
         uiElements = {
             mainPopup: popup,
+            mainPopupContent: popup.querySelector('.popup-main-content'), // Reference to the scrollable content area
             initialSearchSection: popup.querySelector('.initial-search-section'),
             modelSearchInput: document.getElementById('model-search-input-popup'),
             startSearchButton: document.getElementById('start-search-btn-popup'),
             closeMainPopupButton: popup.querySelector('.popup-close-btn'),
             userDisplayName: document.getElementById('user-display-name'),
             liveClockAndVersion: document.getElementById('live-clock-and-version'),
+
             searchResultsSection: popup.querySelector('.search-results-section'),
             itemsGrid: document.getElementById('search-items-grid-popup'),
             captchaSmsContainer: popup.querySelector('.captcha-sms-messages-container'),
@@ -635,6 +637,7 @@
             captchaInput: document.getElementById('captcha-input-field-popup'),
             smsInput: document.getElementById('sms-input-field-popup'),
             getSmsCodeButton: document.getElementById('get-sms-code-btn-popup'),
+
             submitOrderButton: document.getElementById('submit-order-btn-popup'),
             noMessagePlaceholder: popup.querySelector('.no-message-exist'),
             toggleMobilePanelButton: document.getElementById('toggle-mobile-panel-btn'),
@@ -642,6 +645,7 @@
             mobileNumberInput: document.getElementById('mobile-number-input'),
             saveMobileButton: document.getElementById('save-mobile-btn'),
             updateButton: document.getElementById('check-update-btn'),
+
             toggleSettingsButton: document.getElementById('toggle-settings-btn'),
             settingsContent: document.getElementById('settings-content'),
         };
@@ -655,67 +659,64 @@
         uiElements.smsInput.addEventListener('input', checkAndEnableSubmitButton);
         uiElements.toggleMobilePanelButton.addEventListener('click', () => {
             const panel = uiElements.mobileInputPanel;
-            if (panel.style.display === 'none') {
-                panel.style.display = 'block';
-            } else {
-                panel.style.display = 'none';
-            }
+            panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
         });
-
         uiElements.saveMobileButton.addEventListener('click', () => {
             const newNumber = uiElements.mobileNumberInput.value.trim();
             if (newNumber && /^[0-9]{11}$/.test(newNumber)) {
                 mobileNumber = newNumber;
                 GM_setValue('savedMobileNumber', mobileNumber);
                 uiElements.userDisplayName.textContent = mobileNumber;
+
                 displayMessage(`شماره موبایل به ${mobileNumber} تغییر یافت و ذخیره شد.`, 'success');
                 uiElements.mobileInputPanel.style.display = 'none';
             } else {
                 displayMessage('لطفاً یک شماره موبایل ۱۱ رقمی صحیح وارد کنید.', 'error');
             }
         });
-
         const solverRadios = popup.querySelectorAll('input[name="captcha-solver-option"]');
         solverRadios.forEach(radio => {
-            if (radio.value === selectedSolver) {
-                radio.checked = true;
-            }
+            if (radio.value === selectedSolver) radio.checked = true;
             radio.addEventListener('change', (e) => {
                 selectedSolver = e.target.value;
                 GM_setValue('selectedSolver', selectedSolver);
                 const friendlyName = e.target.parentElement.textContent.trim();
+
                 log('info', `تنظیمات حل‌کننده به: ${friendlyName} تغییر یافت.`);
                 displayMessage(`حل‌کننده کپچا به ${friendlyName} تغییر یافت.`, 'success');
             });
         });
-
         uiElements.toggleSettingsButton.addEventListener('click', () => {
-            if (uiElements.settingsContent.style.display === 'none') {
-                uiElements.settingsContent.style.display = 'block';
-                uiElements.toggleSettingsButton.classList.add('open');
-            } else {
-                uiElements.settingsContent.style.display = 'none';
-                uiElements.toggleSettingsButton.classList.remove('open');
-            }
+            const content = uiElements.settingsContent;
+            const isOpen = content.style.display === 'block';
+            content.style.display = isOpen ? 'none' : 'block';
+            uiElements.toggleSettingsButton.classList.toggle('open', !isOpen);
         });
         resetPopupUI();
     }
 
     function checkAndEnableSubmitButton() {
         if(uiElements.captchaInput && uiElements.smsInput && uiElements.submitOrderButton) {
-            const cf = uiElements.captchaInput.value.trim().length > 0;
-            const sf = uiElements.smsInput.value.trim().length > 0;
-            uiElements.submitOrderButton.disabled = !(cf && sf);
+            uiElements.submitOrderButton.disabled = !(uiElements.captchaInput.value.trim() && uiElements.smsInput.value.trim());
         }
     }
 
     async function tryAutoSubmit() {
         if (currentOrderData.isSubmittingOrderProcess) return;
-        const capFilled = currentOrderData.captchaAutoFilled && uiElements.captchaInput.value.trim() !== '';
-        const smsFilled = currentOrderData.smsAutoFilled && uiElements.smsInput.value.trim() !== '';
-        if (capFilled && smsFilled) {
-            log('info', 'کپچا و SMS خودکار پر شد. شروع ثبت خودکار...');
-            await handleSubmitOrder();
+        if (currentOrderData.captchaAutoFilled && currentOrderData.smsAutoFilled) {
+            log('info', 'کپچا و SMS خودکار پر شد. شبیه‌سازی کلیک برای ثبت نهایی...');
+            const activeConfig = getActiveConfig();
+            // --- تغییر اینجا: شبیه‌سازی کلیک روی دکمه ثبت نهایی ---
+            // قبل از کلیک، مطمئن شوید دکمه فعال است
+            if (!uiElements.submitOrderButton.disabled) {
+                await simulateClick(uiElements.submitOrderButton, activeConfig.minClickDelayMs, activeConfig.maxClickDelayMs);
+            } else {
+                // اگر دکمه غیرفعال بود (مثلاً توسط یک اسکریپت دیگر یا مشکل در UI)،
+                // مستقیماً تابع هندل کننده را فراخوانی کنید تا فرآیند ادامه یابد.
+                log('warn', 'دکمه ثبت نهایی غیرفعال بود، مستقیماً تابع هندل کننده فراخوانی شد.');
+                await handleSubmitOrder();
+            }
+            // --- پایان تغییر ---
         }
     }
 
@@ -731,8 +732,7 @@
 
     function updateClockDisplay() {
         if(!uiElements.liveClockAndVersion) return;
-        const n = new Date();
-        const timeString = `${n.getHours().toString().padStart(2,'0')}:${n.getMinutes().toString().padStart(2,'0')}`;
+        const timeString = new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
         uiElements.liveClockAndVersion.innerHTML = `${timeString} <span class="bot-version-display">${CONFIG.botVersion}</span>`;
     }
 
@@ -749,6 +749,7 @@
             <div class="found-product-details">
                 <h4 class="found-product-title">${project.KhodroTitle}</h4>
                 <p class="found-product-model">${project.Title}</p>
+
                 <div class="found-product-price">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M4 10.781c.525 1.657 2.343 3.219 5.088 3.219.525 0 1.023-.082 1.465-.223.442-.141.836-.324 1.178-.543.342-.219.633-.477.86-.77.227-.292.416-.612.558-.954.142-.342.24-.71.277-1.107.038-.396.058-.808.058-1.234s-.02-.838-.058-1.234a4.31 4.31 0 0 0-.277-1.107 4.312 4.312 0 0 0-.558-.954 4.322 4.322 0 0 0-.86-.77 4.328 4.328 0 0 0-1.178-.543A5.962 5.962 0 0 0 9.088 4c-2.746 0-4.563 1.562-5.088 3.219-.076.24-.117.487-.117.722s.04.481.117.722z"/><path d="M10.854 5.293a.5.5 0 0 0-.708-.707L7.543 6.22l-.646-.647a.5.5 0 1 0-.708.708l.647.646-.647.646a.5.5 0 1 0 .708.708l.646-.647.646.647a.5.5 0 0 0 .708-.707L8.25 7.28l2.604-2.605z M4.5 13.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm1.5-1.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z"/></svg>
                     <span>قیمت:</span>
@@ -761,10 +762,11 @@
         uiElements.searchResultsSection.style.display = 'block';
         uiElements.captchaSmsContainer.style.display = 'flex';
 
+        // Scroll to the captcha/SMS container after displaying the product
         setTimeout(() => {
-            if (uiElements.captchaSmsContainer) {
-                const offset = uiElements.captchaSmsContainer.getBoundingClientRect().top + uiElements.mainPopup.scrollTop - 20;
-                uiElements.mainPopup.scrollTo({ top: offset, behavior: 'smooth' });
+            if (uiElements.captchaSmsContainer && uiElements.mainPopupContent) {
+                // Scroll the main content area to the captcha container
+                uiElements.captchaSmsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }, 100);
     }
@@ -775,10 +777,7 @@
             uiElements.captchaImageDisplay.innerHTML = captchaData.capchaData;
         } else if (captchaData.dataImage) {
             uiElements.captchaImageDisplay.innerHTML = `<img src="data:image/png;base64,${captchaData.dataImage}" alt="تصویر کپچا">`;
-        } else {
-            return { error: "داده‌ای برای کپچا از API دریافت نشد." };
         }
-        return { error: null };
     }
 
     // =====================================================================================
@@ -787,12 +786,12 @@
     async function pollSmsFromRelay() {
         if (currentOrderData.stopProcess || !currentOrderData.selectedProject) return;
         const smsResult = await getLastSmsFromRelayServer();
-        if (smsResult.success && smsResult.sms) {
-            log('success', `کد SMS از سرور واسط دریافت شد: ${smsResult.sms}`);
+        if (smsResult.success && smsResult.sms && !currentOrderData.smsAutoFilled) {
+            log('success', `کد SMS از سرور واسط دریافت و جایگزاری شد: ${smsResult.sms}`);
             displayMessage(`کد SMS دریافت شد: ${smsResult.sms}`, 'success');
-            stopSmsRelayPolling();
             currentOrderData.smsCode = smsResult.sms;
             currentOrderData.smsAutoFilled = true;
+            // مقداردهی مستقیم برای SMS
             uiElements.smsInput.value = smsResult.sms;
             checkAndEnableSubmitButton();
             await tryAutoSubmit();
@@ -801,93 +800,75 @@
 
     function startSmsRelayPolling() {
         stopSmsRelayPolling();
-        log('info', `شروع پولینگ SMS...`);
+        log('info', `شروع پایش مداوم SMS...`);
         const pollLoop = async () => {
-             if (currentOrderData.stopProcess || currentOrderData.smsAutoFilled) {
-                stopSmsRelayPolling();
-                return;
-            }
-            await pollSmsFromRelay();
-            if (!currentOrderData.stopProcess && !currentOrderData.smsAutoFilled) {
-                smsRelayPollingTimeoutId = setTimeout(pollLoop, CONFIG.smsRelayPollingIntervalMs);
+            if (!currentOrderData.stopProcess) { // Check stopProcess here
+                await pollSmsFromRelay();
+                if (!currentOrderData.stopProcess) { // Re-check after poll
+                    smsRelayPollingTimeoutId = setTimeout(pollLoop, CONFIG.smsRelayPollingIntervalMs);
+                }
+            } else {
+                stopSmsRelayPolling(); // Stop if stopProcess is true
             }
         };
         pollLoop();
     }
 
+
     function stopSmsRelayPolling() {
         if (smsRelayPollingTimeoutId) {
             clearTimeout(smsRelayPollingTimeoutId);
             smsRelayPollingTimeoutId = null;
-            log('info', 'پولینگ SMS متوقف شد.');
+            log('info', 'پایش SMS متوقف شد.');
         }
     }
-
-    async function requestAndHandleSms(isManualRequest = false) {
-        if (isManualRequest && uiElements.getSmsCodeButton.disabled) {
-            displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.', 'warn');
-            return true;
-        }
-
-        displayMessage(`در حال ارسال درخواست SMS به ایران‌خودرو...`, 'info');
-        if (isManualRequest) uiElements.getSmsCodeButton.disabled = true;
-
-        startSmsRelayPolling();
-        const smsResponse = await requestSmsFromIKD();
-
-        if (!smsResponse.success) {
-            displayMessage(`ارسال درخواست SMS به ایران‌خودرو ناموفق: ${smsResponse.error}.`, 'error');
-            if (smsResponse.isCooldown) {
-                displayMessage('محدودیت زمانی SMS فعال است. ربات همچنان کد را از سرور واسط می‌خواند.', 'warn');
-                startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
-            }
-            return true;
-        } else {
-            displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
-            if(isManualRequest) startManualSmsCooldownTimer();
-            return true;
-        }
-    }
-
 
     async function startOrderProcess() {
         if (currentOrderData.stopProcess || !currentOrderData.selectedProject || currentOrderData.isSubmittingOrderProcess) return;
         const activeConfig = getActiveConfig();
-
         try {
             log('info', 'شروع فرآیند اصلی...');
             currentOrderData.captchaAutoFilled = false;
             currentOrderData.smsAutoFilled = false;
-            currentOrderData.orderDetails = null;
             if (uiElements.captchaInput) uiElements.captchaInput.value = '';
             if (uiElements.smsInput) uiElements.smsInput.value = '';
             checkAndEnableSubmitButton();
-            await sleep(getRandomDelay(activeConfig.minApiDelayMs, activeConfig.maxApiDelayMs));
+            await sleep(CONFIG.fixedDelays.apiDelayMs);
             displayMessage('در حال دریافت اطلاعات سفارش و کپچا...', 'info');
 
-            const [orderDetailsResult, captchaApiResult] = await Promise.all([
-                getOrderDetailsFromIKD(currentOrderData.selectedProject),
-                getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg)
-            ]);
-            if (!orderDetailsResult.success) {
-                displayMessage(`خطا در دریافت اطلاعات سفارش: ${orderDetailsResult.error}. تلاش مجدد...`, 'error');
-                setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
-                return;
-            }
-            currentOrderData.orderDetails = orderDetailsResult.data;
-            log('success', 'اطلاعات اولیه سفارش با موفقیت دریافت شد.');
-
+            const captchaApiResult = await getCaptchaOrderFromIKD(currentOrderData.selectedProject.IdDueDeliverProg, currentOrderData.captchaToken || "");
             if (!captchaApiResult.success) {
-                 displayMessage(`خطا در دریافت کپچا: ${captchaApiResult.error}. تلاش مجدد...`, 'error');
-                 setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
+                displayMessage(`خطا در دریافت کپچا: ${captchaApiResult.error}. تلاش مجدد...`, 'error');
+                setTimeout(startOrderProcess, CONFIG.fixedDelays.retryDelayMs);
                 return;
             }
+
+            if (!currentOrderData.orderDetails) {
+                await sleep(getRandomDelay(200, 500));
+                const orderDetailsResult = await getOrderDetailsFromIKD(currentOrderData.selectedProject);
+                if (!orderDetailsResult.success) {
+                    displayMessage(`خطا در دریافت اطلاعات سفارش: ${orderDetailsResult.error}. تلاش مجدد...`, 'error');
+                    return;
+                }
+                currentOrderData.orderDetails = orderDetailsResult.data;
+            }
+            log('success', 'اطلاعات اولیه سفارش با موفقیت دریافت شد.');
+            if (!currentOrderData.initialSmsRequestSent) {
+                log('info', 'ارسال اولین درخواست SMS به سرور ایران‌خودرو...');
+                const smsResponse = await requestSmsFromIKD();
+                if (smsResponse.success) {
+                    displayMessage('درخواست اولیه SMS با موفقیت ارسال شد.', 'success');
+                    currentOrderData.initialSmsRequestSent = true;
+                    if (!uiElements.getSmsCodeButton.disabled) startManualSmsCooldownTimer();
+                } else {
+                    displayMessage(`ارسال درخواست اولیه SMS ناموفق: ${smsResponse.error}`, 'error');
+                    if (smsResponse.isCooldown) startManualSmsCooldownTimer(Math.ceil(smsResponse.timeLeftMs / 1000));
+                }
+            }
+
             displayCaptcha(captchaApiResult.data);
             currentOrderData.captchaToken = captchaApiResult.data.token;
-            if (selectedSolver === 'solver-none') {
-                displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
-            } else {
-                let captchaSolved = false;
+            if (selectedSolver !== 'solver-none') {
                 for (let i = 0; i < activeConfig.maxCaptchaSolveRetries; i++) {
                     displayMessage(`تلاش ${i + 1} از ${activeConfig.maxCaptchaSolveRetries} برای حل خودکار کپچا...`, 'info');
                     const solveResponse = await solveCaptcha(captchaApiResult.data);
@@ -895,27 +876,31 @@
                         displayMessage('کپچای جدید به طور خودکار حل شد.', 'success');
                         currentOrderData.captchaCode = solveResponse.answer;
                         currentOrderData.captchaAutoFilled = true;
-                        uiElements.captchaInput.value = solveResponse.answer;
-                        captchaSolved = true;
+                        // --- تغییر اینجا: کلیک شبیه‌سازی شده قبل از تایپ کپچا ---
+                        log('info', 'شبیه‌سازی کلیک روی باکس ورودی کپچا...');
+                        await simulateClick(uiElements.captchaInput, activeConfig.minClickDelayMs, activeConfig.maxClickDelayMs);
+                        // --- پایان تغییر ---
+                        await simulateTyping(uiElements.captchaInput, solveResponse.answer, activeConfig.minCaptchaTypingDelayMs, activeConfig.maxCaptchaTypingDelayMs);
+                        await tryAutoSubmit();
                         break;
-                    } else {
-                        displayMessage(`تلاش ${i + 1} برای حل خودکار کپچا ناموفق بود: ${solveResponse.error}.`, 'warn');
-                        if (i < activeConfig.maxCaptchaSolveRetries - 1) {
-                            await sleep(getRandomDelay(activeConfig.minCaptchaRetryDelayMs, activeConfig.maxCaptchaRetryDelayMs));
-                        }
                     }
+                    displayMessage(`تلاش ${i + 1} برای حل خودکار کپچا ناموفق بود: ${solveResponse.error || ''}.`, 'warn');
+                    if (i < activeConfig.maxCaptchaSolveRetries - 1) await sleep(getRandomDelay(activeConfig.minCaptchaRetryDelayMs, activeConfig.maxCaptchaRetryDelayMs));
                 }
-                if (!captchaSolved) {
-                    displayMessage('حل خودکار کپچا پس از چند تلاش ناموفق بود. لطفاً دستی وارد کنید.', 'warn');
+                if (!currentOrderData.captchaAutoFilled) displayMessage('حل خودکار کپچا پس از چند تلاش ناموفق بود. لطفاً دستی وارد کنید.', 'warn');
+            } else {
+                displayMessage('حل خودکار کپچا غیرفعال است. لطفاً دستی وارد کنید.', 'warn');
+                log('info', 'حل‌کننده خودکار غیرفعال است. شبیه‌سازی کلیک روی باکس کپچا برای ورود دستی.');
+                // کلیک خودکار روی کادر کپچا
+                if (uiElements.captchaInput) {
+                    uiElements.captchaInput.focus();
                 }
             }
-
             checkAndEnableSubmitButton();
-            await requestAndHandleSms(false);
         } catch (e) {
             log('error', 'یک خطای پیش‌بینی نشده در فرآیند اصلی رخ داد. ربات مجددا تلاش خواهد کرد.', e);
-            displayMessage(`یک خطای غیرانتظره رخ داد: ${e.message}. شروع مجدد...`, 'error');
-            setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
+            displayMessage(`یک خطای غیرمنتظره رخ داد: ${e.message}. شروع مجدد...`, 'error');
+            setTimeout(startOrderProcess, getRandomDelay(getActiveConfig().minRetryDelayMs, getActiveConfig().maxRetryDelayMs));
         }
     }
 
@@ -939,14 +924,13 @@
                     displayMessage(`محصول "${foundProject.KhodroTitle}" پیدا و انتخاب شد.`, 'success');
                     displayFoundItem(foundProject);
                     currentOrderData.stopProcess = false;
+                    startSmsRelayPolling();
                     startOrderProcess();
                 } else {
                     displayMessage(`محصول "${searchTerm}" هنوز یافت نشد.`, 'info');
                 }
-            } else if (projectsResponse.error) {
-                displayMessage(`خطا در دریافت لیست محصولات: ${projectsResponse.error}.`, 'warn');
             } else {
-                displayMessage(`لیست محصولات خالی است.`, 'info');
+                displayMessage(projectsResponse.error ? `خطا در دریافت لیست محصولات: ${projectsResponse.error}.` : `لیست محصولات خالی است.`, 'warn');
             }
         } catch (e) {
             log('error', 'خطا در حلقه جستجوی محصول.', e);
@@ -972,36 +956,35 @@
     }
 
     function stopContinuousProductSearch() {
-        if(productSearchPollingTimeoutId) { clearTimeout(productSearchPollingTimeoutId); productSearchPollingTimeoutId = null;
-        }
+        if(productSearchPollingTimeoutId) { clearTimeout(productSearchPollingTimeoutId); productSearchPollingTimeoutId = null; }
         isContinuousSearchingProduct = false;
-        if(uiElements.startSearchButton) { uiElements.startSearchButton.textContent = CONFIG.startContinuousSearchText; uiElements.startSearchButton.disabled = false;
-        }
+        if(uiElements.startSearchButton) { uiElements.startSearchButton.textContent = CONFIG.startContinuousSearchText; uiElements.startSearchButton.disabled = false; }
         if(uiElements.modelSearchInput) uiElements.modelSearchInput.disabled = false;
         log('info','جستجوی محصول متوقف شد.');
     }
 
     function toggleContinuousProductSearch() {
-        if (isContinuousSearchingProduct) stopContinuousProductSearch();
-        else startContinuousProductSearch();
+        isContinuousSearchingProduct ? stopContinuousProductSearch() : startContinuousProductSearch();
     }
 
-    function startManualSmsCooldownTimer(totalSeconds) {
+    function startManualSmsCooldownTimer(totalSeconds = CONFIG.smsCooldownMinutes * 60) {
         let timeLeft = totalSeconds;
         if (smsCooldownInterval) clearInterval(smsCooldownInterval);
         const updateTimer = () => {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            if (uiElements.getSmsCodeButton) {
-                uiElements.getSmsCodeButton.textContent = CONFIG.manualSmsCooldownText.replace('{timeLeft}', `${minutes}:${seconds.toString().padStart(2, '0')}`);
-                uiElements.getSmsCodeButton.disabled = true;
-            }
-            if (timeLeft-- <= 0) {
+            if (timeLeft <= 0) {
                 clearInterval(smsCooldownInterval);
                 if (uiElements.getSmsCodeButton) {
                     uiElements.getSmsCodeButton.textContent = CONFIG.manualSmsButtonText;
                     uiElements.getSmsCodeButton.disabled = false;
                 }
+            } else {
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                if (uiElements.getSmsCodeButton) {
+                    uiElements.getSmsCodeButton.textContent = CONFIG.manualSmsCooldownText.replace('{timeLeft}', `${minutes}:${seconds.toString().padStart(2, '0')}`);
+                    uiElements.getSmsCodeButton.disabled = true;
+                }
+                timeLeft--;
             }
         };
         updateTimer();
@@ -1011,46 +994,39 @@
     function checkSmsCooldownOnLoad() {
         if (smsCooldownInterval) clearInterval(smsCooldownInterval);
         const lastSmsTime = parseInt(localStorage.getItem(CONFIG.smsTimestampKey) || '0');
-        const now = Date.now();
+        const timePassed = Date.now() - lastSmsTime;
         const cooldownMs = CONFIG.smsCooldownMinutes * 60 * 1000;
-
-        const timePassed = now - lastSmsTime;
-
         if (timePassed < cooldownMs) {
-            const remainingSeconds = Math.ceil((cooldownMs - timePassed) / 1000);
-            startManualSmsCooldownTimer(remainingSeconds);
-            return false;
-        } else {
-             if (uiElements.getSmsCodeButton) {
-                uiElements.getSmsCodeButton.textContent = CONFIG.manualSmsButtonText;
-                uiElements.getSmsCodeButton.disabled = false;
-            }
-            return true;
+            startManualSmsCooldownTimer(Math.ceil((cooldownMs - timePassed) / 1000));
         }
     }
 
     async function handleManualSmsRequest() {
         if(!currentOrderData.selectedProject){ displayMessage('ابتدا محصول باید انتخاب شود.','warn');
         return; }
-        if(!checkSmsCooldownOnLoad()){ displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn'); return;
+        if (uiElements.getSmsCodeButton.disabled) { displayMessage('لطفاً تا پایان شمارش معکوس صبر کنید.','warn'); return;
         }
-        await requestAndHandleSms(true);
+        displayMessage(`در حال ارسال درخواست SMS به ایران‌خودرو...`, 'info');
+        uiElements.getSmsCodeButton.disabled = true;
+        const smsResponse = await requestSmsFromIKD();
+        if (!smsResponse.success) {
+            displayMessage(`ارسال درخواست SMS به ایران‌خودرو ناموفق: ${smsResponse.error}.`, 'error');
+        } else {
+            displayMessage('درخواست SMS با موفقیت به ایران‌خودرو ارسال شد.', 'success');
+        }
+        startManualSmsCooldownTimer();
     }
 
     async function handleSubmitOrder() {
-        if (currentOrderData.isSubmittingOrderProcess) { return;
-        }
+        if (currentOrderData.isSubmittingOrderProcess) return;
         currentOrderData.isSubmittingOrderProcess = true;
-        stopMainProcess();
+        stopMainProcess(); // Stop polling during submission attempt
         if (uiElements.submitOrderButton) {
             uiElements.submitOrderButton.disabled = true;
             uiElements.submitOrderButton.textContent = `در حال ثبت...`;
         }
-
         const captchaCode = uiElements.captchaInput.value.trim();
         const smsCode = uiElements.smsInput.value.trim();
-        const activeConfig = getActiveConfig();
-
         if (!captchaCode || !smsCode) {
             displayMessage('کپچا و کد SMS هر دو باید پر شوند.', 'error');
             currentOrderData.isSubmittingOrderProcess = false;
@@ -1059,40 +1035,45 @@
         }
         currentOrderData.captchaCode = captchaCode;
         currentOrderData.smsCode = smsCode;
-        if (!currentOrderData.selectedProject || !currentOrderData.captchaToken) {
-            displayMessage('اطلاعات سفارش ناقص است.', 'error');
+        if (!currentOrderData.selectedProject || !currentOrderData.captchaToken || !currentOrderData.orderDetails) {
+            displayMessage('اطلاعات سفارش ناقص است. فرآیند ریست می‌شود.', 'error');
             resetPopupUI();
             currentOrderData.isSubmittingOrderProcess = false;
             return;
         }
 
-        if (!currentOrderData.orderDetails) {
-            displayMessage('اطلاعات سفارش یافت نشد! فرآیند مجدداً آغاز می‌شود.', 'error');
-            currentOrderData.isSubmittingOrderProcess = false;
-            setTimeout(startOrderProcess, getRandomDelay(activeConfig.minRetryDelayMs, activeConfig.maxRetryDelayMs));
-            return;
-        }
-
         const finalOrderDetails = currentOrderData.orderDetails;
-        const orderPayload = { agency: finalOrderDetails.agency, agencyId: parseInt(finalOrderDetails.agencyId), agencyShow: 2, captchaText: currentOrderData.captchaCode, captchaToken: currentOrderData.captchaToken, idBank: 23, idBaseColor: parseInt(finalOrderDetails.selectedColor), idBaseUsage: parseInt(finalOrderDetails.selectedUsage), quantity: 1, responDoc: true, idDueDeliverProg: parseInt(currentOrderData.selectedProject.IdDueDeliverProg), smsKey: currentOrderData.smsCode, valueId: generateUUID(), };
+        const orderPayload = { agencyShow: 2,
+                              idDueDeliverProg: parseInt(currentOrderData.selectedProject.IdDueDeliverProg),
+                              agency: finalOrderDetails.agency,
+                              idBaseColor: parseInt(finalOrderDetails.selectedColor),
+
+                              idBaseUsage: parseInt(finalOrderDetails.selectedUsage),
+                              smsKey: currentOrderData.smsCode,
+                              quantity: 1,
+
+                              responDoc: true,
+                              idBank: 23,
+                              valueId: generateUUID(),
+
+                              captchaText: currentOrderData.captchaCode,
+                              captchaToken: currentOrderData.captchaToken,
+                              agencyId: parseInt(finalOrderDetails.agencyId), };
         const addOrderResponse = await addOrderToIKD(orderPayload);
 
         if (addOrderResponse.success) {
             displayMessage('سفارش با موفقیت ثبت و به بانک هدایت می‌شوید.', 'success');
-            stopMainProcess();
+            // Do not call stopMainProcess again, it's already stopped. It will fully stop on redirect.
         } else {
             displayMessage(`ثبت نهایی ناموفق: ${addOrderResponse.error}.`, 'error');
             log('error', 'ثبت نهایی ناموفق بود. پاسخ سرور:', addOrderResponse);
             log('warn', `کپچای ارسال شده: ${captchaCode}, کد پیامک ارسال شده: ${smsCode}. فرآیند مجدداً آغاز می‌شود.`);
-            const delay = getRandomDelay(activeConfig.minSubmitFailedDelayMs, activeConfig.maxSubmitFailedDelayMs);
+            const delay = getRandomDelay(getActiveConfig().minSubmitFailedDelayMs, getActiveConfig().maxSubmitFailedDelayMs);
             displayMessage(`فرآیند تا ${delay / 1000} ثانیه دیگر به صورت خودکار مجدداً آغاز می‌شود...`, 'info');
             currentOrderData.isSubmittingOrderProcess = false;
             currentOrderData.stopProcess = false;
-            if (uiElements.submitOrderButton) {
-                uiElements.submitOrderButton.disabled = false;
-                uiElements.submitOrderButton.textContent = 'ثبت نهایی سفارش';
-            }
             setTimeout(() => {
+                startSmsRelayPolling(); // Restart polling for the next attempt
                 startOrderProcess();
             }, delay);
         }
@@ -1101,44 +1082,37 @@
     async function handleUpdateCheck() {
         const SCRIPT_URL = 'https://github.com/masoudes72/ikd/raw/refs/heads/main/ikddd.user.js';
         displayMessage('درحال باز کردن صفحه نصب/به‌روزرسانی...', 'info');
-        uiElements.updateButton.disabled = true;
-        try {
-            window.open(SCRIPT_URL, '_blank');
-            await sleep(1000);
-            displayMessage('اگر نسخه جدیدی موجود باشد، صفحه نصب باز می‌شود.', 'success');
-        } catch (error) {
-            log('error', 'خطا در باز کردن لینک به‌روزرسانی.', error);
-            displayMessage('خطا در باز کردن لینک به‌روزرسانی. لطفاً پاپ‌آپ‌ها را فعال کنید.', 'error');
-        } finally {
-            uiElements.updateButton.disabled = false;
-        }
+        window.open(SCRIPT_URL, '_blank');
     }
 
     // =====================================================================================
-    // --- � SCRIPT INITIALIZATION & ENTRY POINT ---
+    // --- 🚀 SCRIPT INITIALIZATION & ENTRY POINT ---
     // =====================================================================================
     function ensureUIExists() {
-        if (!document.getElementById('ikd-bot-trigger-btn')) { createTriggerButton();
-        }
-        if (!document.getElementById('ikd-main-process-popup')) { createMainPopupUI();
-        }
+        if (!document.getElementById('ikd-bot-trigger-btn')) createTriggerButton();
+        if (!document.getElementById('ikd-main-process-popup')) createMainPopupUI();
     }
 
     function initializeScript() {
         log('info', `Script initializing (${CONFIG.botVersion}).`);
         selectedSolver = GM_getValue('selectedSolver', 'solver-2');
         mobileNumber = GM_getValue('savedMobileNumber', CONFIG.defaultMobileNumber);
-        log('info', `حل‌کننده کپچای انتخاب شده: ${selectedSolver}`);
-        log('info', `شماره موبایل بارگذاری شده: ${mobileNumber}`);
-        if (typeof localStorage !== 'undefined') {
-            authToken = localStorage.getItem(CONFIG.localStorageTokenKey);
-            if (!authToken) {
-                log('error', `توکن "${CONFIG.localStorageTokenKey}" یافت نشد. لطفاً ابتدا در سایت لاگین کنید و سپس صفحه را رفرش نمایید.`);
-                alert(`توکن لاگین یافت نشد. لطفاً ابتدا در سایت https://esale.ikd.ir لاگین کنید و سپس صفحه را رفرش نمایید.`);
-                return;
-            }
-        } else {
-            log('error', 'localStorage is not supported.');
+        authToken = localStorage.getItem(CONFIG.localStorageTokenKey);
+        if (!authToken) {
+            const msg = `توکن لاگین یافت نشد.
+لطفاً ابتدا در سایت https://esale.ikd.ir لاگین کنید و سپس صفحه را رفرش نمایید.`;
+            // Do not use alert(), use a custom modal for user experience. For now, we log the error.
+            console.error(msg);
+            // Example of a simple inline message instead of alert:
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                background-color: #f44; color: white; padding: 20px; border-radius: 8px;
+                z-index: 10000; text-align: center; font-family: 'IRANSans', Tahoma, sans-serif;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            `;
+            errorDiv.innerHTML = `<p>${msg.replace(/\n/g, '<br>')}</p><button onclick="this.parentNode.remove()" style="background: none; border: 1px solid white; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-top: 10px;">بستن</button>`;
+            document.body.appendChild(errorDiv);
             return;
         }
         applyStyles();
@@ -1152,7 +1126,27 @@
 
     function applyStyles() {
         GM_addStyle(`
-            :root{--theme-primary:#f4a261;--theme-secondary:#2b4157;--theme-dark-gray:#212529;--theme-light-gray:#e0e0e0;--theme-text-light:#f8f9fa;--theme-text-dark:#212529;--success-bg:rgba(40,200,130,.1);--success-text:rgba(200,255,220,.9);--success-border: #2c8;--error-bg:rgba(255,60,60,.1);--error-text:rgba(255,200,200,.9);--error-border:#f44;--warn-bg:rgba(255,170,0,.1);--warn-text:rgba(255,220,180,.9);--warn-border:#fa0;--font-family:'IRANSans','Tahoma',sans-serif;--border-radius-sm:0.3rem;--border-radius-md:0.5rem;--box-shadow:0 .5rem 1rem rgba(0,0,0,.15)}
+            :root{
+                --theme-primary:#f4a261; /* Vibrant Orange for accents */
+                --theme-secondary:#2b4157; /* Dark Gray/Blue Base */
+                --lighter-shade:#37506b; /* Slightly lighter shade for neumorphism highlights */
+                --darker-shade:#21324a; /* Slightly darker shade for neumorphism shadows */
+                --theme-dark-gray:#212529;
+                --theme-light-gray:#e0e0e0;
+                --theme-text-light:#f8f9fa;
+                --theme-text-dark:#212529;
+                --success-bg:rgba(40,200,130,.1);--success-text:rgba(200,255,220,.9);--success-border: #2c8;
+                --error-bg:rgba(255,60,60,.1);--error-text:rgba(255,200,200,.9);--error-border:#f44;
+                --warn-bg:rgba(255,170,0,.1);--warn-text:rgba(255,220,180,.9);--warn-border:#fa0;
+                --font-family:'IRANSans','Tahoma',sans-serif;
+                --border-radius-sm:8px; /* Slightly more rounded */
+                --border-radius-md:12px; /* More rounded for neumorphism */
+                --box-shadow:0 .5rem 1rem rgba(0,0,0,.15);
+                --neumorphic-shadow-out: 6px 6px 12px var(--darker-shade), -6px -6px 12px var(--lighter-shade);
+                --neumorphic-shadow-in: inset 6px 6px 12px var(--darker-shade), inset -6px -6px 12px var(--lighter-shade);
+                --neumorphic-shadow-hover-out: 3px 3px 6px var(--darker-shade), -3px -3px 6px var(--lighter-shade);
+                --neumorphic-shadow-hover-in: inset 3px 3px 6px var(--darker-shade), inset -3px -3px 6px var(--lighter-shade);
+            }
             body{font-family:var(--font-family)}
             @keyframes pulsing-glow {
                 0% { box-shadow: 0 0 5px var(--theme-primary), 0 0 10px var(--theme-primary); }
@@ -1161,43 +1155,44 @@
             }
             #ikd-bot-trigger-btn {
                 position: fixed;
-                bottom: 25px;
-                right: 25px;
-                padding: 12px 20px;
-                background: linear-gradient(145deg, #f4a261, #e76f51);
+                bottom: 25px; right: 25px; padding: 12px 20px;
+                background-color: var(--theme-secondary); /* Base color for neumorphism */
                 color: var(--theme-text-light);
                 border: none;
                 border-radius: 50px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-                font-size: 16px;
-                font-weight: 500;
-                cursor: pointer;
-                z-index: 9999;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                box-shadow: var(--neumorphic-shadow-out); /* Neumorphic convex shadow */
+                font-size: 16px; font-weight: 500; cursor: pointer; z-index: 9999;
+                display: flex; align-items: center; justify-content: center;
                 gap: 10px;
-                transition: all .3s ease;
-                animation: pulsing-glow 3s infinite;
+                transition: all .3s ease-in-out; /* Smooth transition for neumorphism */
+                animation: none; /* Remove initial pulsing glow, can add subtle one on hover */
             }
             #ikd-bot-trigger-btn:hover {
-                transform: translateY(-3px) scale(1.05);
-                box-shadow: 0 8px 25px rgba(244, 162, 97, 0.5);
-                animation-play-state: paused;
+                transform: translateY(0); /* Remove the lift from original design */
+                box-shadow: var(--neumorphic-shadow-hover-in); /* Simulate pressed in effect */
             }
-            #ikd-bot-trigger-btn svg {
-                transition: transform .3s ease;
+            #ikd-bot-trigger-btn svg { transition: transform .3s ease;
             }
-            #ikd-bot-trigger-btn:hover svg {
-                transform: rotate(15deg);
+            #ikd-bot-trigger-btn:hover svg { transform: rotate(15deg);
             }
             .popup{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:none;justify-content:center;align-items:center;z-index:10001;padding:20px;backdrop-filter:blur(3px);direction:rtl}
-            .popup-content-wrapper{background-color:var(--theme-secondary);color:var(--theme-text-light);border-radius:var(--border-radius-md);width:100%;max-width:900px;max-height:95vh;box-shadow:0 1rem 3rem rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,0.1)}
-            .popup-header{background:linear-gradient(135deg, rgba(43,65,87,1) 0%, rgba(30,45,60,1) 100%);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1);flex-wrap: wrap;}
+            .popup-content-wrapper{
+                background-color:var(--theme-secondary);
+                color:var(--theme-text-light);
+                border-radius:var(--border-radius-md);
+                width:100%;max-width:900px;max-height:95vh;
+                box-shadow: 10px 10px 20px rgba(0,0,0,0.4), -10px -10px 20px rgba(255,255,255,0.05); /* Soft outer shadow for the main popup */
+                display:flex;flex-direction:column;overflow:hidden;
+                border: none; /* Remove original border */
+            }
+            .popup-header{background:none; /* Remove original gradient */
+            background-color: var(--theme-secondary); /* Use base color */
+            padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.05); /* Softer divider */
+            flex-wrap: wrap;}
             .popup-header-left { display: flex;
             align-items: center; gap: 15px; }
             .popup-header-right { display: flex;
-            align-items: center; gap: 20px; }
+            align-items: center; gap: 20px; flex-wrap: wrap; }
             .popup-logo{height:40px;filter: drop-shadow(0 0 5px rgba(244,162,97,0.5));}
             .popup-title { font-size: 1.25rem;
             font-weight: 500; margin: 0; color: #fff; }
@@ -1205,48 +1200,93 @@
             align-items: center; gap: 8px; font-size: 0.85rem; color: var(--theme-light-gray); }
             .header-info-item svg { color: var(--theme-primary);
             }
-            #live-clock-and-version {
-                direction: ltr;
-                font-family: monospace; /* For better readability of time/version */
+            #live-clock-and-version { direction: ltr; font-family: monospace;
             }
-            .bot-version-display {
-                font-size: 0.75rem;
-                color: rgba(255,255,255,0.6);
-                margin-left: 8px; /* Spacing between time and version */
+            .bot-version-display { font-size: 0.75rem; color: rgba(255,255,255,0.6); margin-left: 8px;
             }
             .popup-close-btn{background:transparent;border:none;color:var(--theme-light-gray);font-size:28px;font-weight:700;cursor:pointer;padding:0 8px;line-height:1;transition:color .2s ease, transform .2s ease;}
             .popup-close-btn:hover{color:var(--theme-primary);
             transform: rotate(90deg);}
             .popup-main-content{padding:1.5rem;display:flex;flex-direction:column;gap:1.5rem;overflow-y:auto;flex-grow:1}
-            .popup-section{background-color:rgba(255,255,255,.03);padding:1.25rem;border-radius:var(--border-radius-md);
-            border: 1px solid rgba(255,255,255,0.08);}
-            .section-title{margin:0 0 1rem;color:var(--theme-primary);border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:10px;font-size:1.1rem;font-weight:500;}
-            .search-input-group, .settings-input-group { display: flex;
-            gap: 10px; }
-            .styled-input{width:100%;padding:12px 15px;margin:0;border:1px solid rgba(255,255,255,.2);border-radius:var(--border-radius-sm);font-size:1rem;background-color:rgba(0,0,0,.25);color:var(--theme-text-light);transition:border-color .2s ease,box-shadow .2s ease}
+            .popup-section{
+                background-color:var(--theme-secondary); /* Same as base for seamless look */
+                padding:1.25rem;
+                border-radius:var(--border-radius-md);
+                box-shadow: var(--neumorphic-shadow-in); /* Inset effect for sections */
+                border: none; /* Remove original border */
+                transition: all .3s ease-in-out;
+            }
+            .section-title{margin:0 0 1rem;color:var(--theme-primary);border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:10px;font-size:1.1rem;font-weight:500;}
+            .search-input-group {
+                display: flex;
+                gap: 10px;
+                justify-content: center; /* Center the items horizontally */
+            }
+            .settings-input-group {
+                display: flex;
+                gap: 10px;
+            }
+            .styled-input{
+                width:100%;padding:12px 15px;margin:0;
+                border:none; /* Remove original border */
+                border-radius:var(--border-radius-sm);
+                font-size:1rem;
+                background-color:var(--theme-secondary); /* Base color */
+                color:var(--theme-text-light);
+                box-shadow: var(--neumorphic-shadow-in); /* Inset shadow for inputs */
+                transition:all .2s ease-in-out;
+            }
             .styled-input::placeholder{color:rgba(255,255,255,.4)}
-            .styled-input:focus{outline:0;border-color:var(--theme-primary);box-shadow:0 0 0 .2rem rgba(244,162,97,.3)}
-            .action-btn{padding:12px 18px;font-size:1rem;font-weight:500;border-radius:var(--border-radius-sm);cursor:pointer;border:none;transition:all .2s ease;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
-            .action-btn.primary-btn{background:linear-gradient(145deg, #f4a261, #e76f51);color:white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);}
-            .action-btn.primary-btn:hover{transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.3);}
-            .action-btn.secondary-btn { background-color: #495057;
-            color: var(--theme-text-light); }
-            .action-btn.secondary-btn:hover { background-color: #5a6268;
+            .styled-input:focus{
+                outline:0;
+                border-color:transparent; /* No border on focus */
+                box-shadow: inset 4px 4px 8px var(--darker-shade), inset -4px -4px 8px var(--lighter-shade), 0 0 0 3px var(--theme-primary); /* Inset with accent glow */
             }
-            .action-btn:disabled{background: #555c63 !important;
-            color:#868e96!important;cursor:not-allowed;transform:none;box-shadow:none;}
-            .items-grid .found-product-card { background-color: rgba(255,255,255,.05);
-            border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 20px; padding: 1rem; overflow: hidden; transition: all .3s ease;
+            .action-btn{padding:12px 18px;font-size:1rem;font-weight:500;border-radius:var(--border-radius-sm);cursor:pointer;border:none;transition:all .3s ease-in-out;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+            .action-btn.primary-btn{
+                background-color: var(--theme-primary); /* Solid accent color */
+                color:white;
+                box-shadow: 4px 4px 8px rgba(0,0,0,0.3), -4px -4px 8px rgba(255,255,255,0.1); /* Soft convex shadow */
             }
-            .items-grid .found-product-card:hover { border-color: var(--theme-primary); background-color: rgba(255,255,255,.08);
+            .action-btn.primary-btn:hover{
+                transform: translateY(0); /* Remove original lift */
+                box-shadow: inset 2px 2px 5px rgba(0,0,0,0.3), inset -2px -2px 5px rgba(255,255,255,0.1); /* Pressed effect */
             }
-            .found-product-image { width: 120px; height: 120px; flex-shrink: 0;
-            border-radius: var(--border-radius-sm); overflow: hidden; }
+            .action-btn.secondary-btn {
+                background-color: var(--theme-secondary); /* Base color */
+                color: var(--theme-text-light);
+                box-shadow: var(--neumorphic-shadow-out); /* Convex shadow for secondary buttons */
+            }
+            .action-btn.secondary-btn:hover {
+                background-color: var(--theme-secondary); /* Keep base color */
+                box-shadow: var(--neumorphic-shadow-hover-in); /* Pressed effect */
+            }
+            .action-btn:disabled{
+                background-color: var(--darker-shade) !important; /* Slightly darker when disabled */
+                color:#868e96!important;
+                cursor:not-allowed;
+                transform:none;
+                box-shadow: inset 2px 2px 5px var(--darker-shade); /* subtle inset */
+            }
+            .items-grid .found-product-card {
+                background-color: var(--theme-secondary); /* Base color */
+                border-radius: var(--border-radius-md);
+                border: none; /* Remove original border */
+                box-shadow: var(--neumorphic-shadow-out); /* Convex shadow for product cards */
+                display: flex; align-items: center; gap: 20px; padding: 1rem; overflow: hidden;
+                transition: all .3s ease-in-out;
+            }
+            .items-grid .found-product-card:hover {
+                box-shadow: var(--neumorphic-shadow-hover-out); /* Slightly smaller convex shadow on hover */
+            }
+            .found-product-image {
+                width: 120px; height: 120px; flex-shrink: 0;
+                border-radius: var(--border-radius-sm); overflow: hidden;
+                box-shadow: inset 2px 2px 5px var(--darker-shade), inset -2px -2px 5px var(--lighter-shade); /* Subtle inset for image container */
+            }
             .found-product-image img { width: 100%;
             height: 100%; object-fit: cover; transition: transform .3s ease; }
-            .found-product-card:hover .found-product-image img { transform: scale(1.1);
+            .found-product-card:hover .found-product-image img { transform: scale(1.05); /* Slight zoom */
             }
             .found-product-details { display: flex; flex-direction: column; gap: 0.5rem;
             flex-grow: 1; }
@@ -1255,28 +1295,51 @@
             .found-product-model { font-size: .9rem;
             color: var(--theme-light-gray); margin: 0; line-height: 1.5; }
             .found-product-price { display: flex;
-            align-items: center; gap: 8px; background-color: rgba(0,0,0,.2); padding: .5rem 1rem; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; margin-top: 0.5rem; align-self: flex-start;
+            align-items: center; gap: 8px; background-color: var(--darker-shade); /* Darker shade for price background */
+            padding: .5rem 1rem; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; margin-top: 0.5rem; align-self: flex-start;
+            box-shadow: inset 2px 2px 4px rgba(0,0,0,0.2); /* Small inset shadow */
             }
             .found-product-price .price-value { color: var(--theme-primary); font-weight: bold;
             }
             .found-product-price svg { color: var(--theme-primary);
             }
-            .captcha-sms-messages-container{display:none;gap:20px;align-items:flex-start}
-            @media(min-width:768px){.captcha-sms-messages-container{flex-direction:row}.captcha-sms-box{flex:1.2}.messages-box{flex:.8}}
+            /* Main container for captcha and messages - default to row for larger screens */
+            .captcha-sms-messages-container {
+                display: flex;
+                flex-direction: row; /* Default to row for desktop */
+                gap: 20px;
+                align-items: flex-start;
+            }
+            /* Flex ratios for captcha and messages boxes on wider screens */
+            .captcha-sms-box{flex:1.2;}
+            .messages-box{flex:.8;}
+
             .captcha-sms-box,.messages-box{min-width:0}
             .messages-content{max-height:280px;overflow-y:auto;padding-right:10px;scrollbar-width:thin;scrollbar-color:var(--theme-primary) rgba(255,255,255,.1)}
             .messages-content::-webkit-scrollbar{width:8px}
             .messages-content::-webkit-scrollbar-track{background:rgba(255,255,255,.05)}
             .messages-content::-webkit-scrollbar-thumb{background-color:var(--theme-primary);border-radius:4px}
             .message{padding:10px 12px;margin-bottom:8px;border-radius:var(--border-radius-sm);font-size:13px;display:flex;align-items:center;gap:10px;line-height:1.5;
-            background-color: rgba(50,150,255,.1); color: rgba(200,220,255,.9); border-left: 4px solid #39f;}
-            .message.success{background-color:rgba(40,200,130,.1);color:rgba(200,255,220,.9);border-left-color:#2c8;}
-            .message.error{background-color:rgba(255,60,60,.1);color:rgba(255,200,200,.9);border-left-color:#f44;}
-            .message.warn{background-color:rgba(255,170,0,.1);color:rgba(255,220,180,.9);border-left-color:#fa0;}
+            background-color: var(--theme-secondary); /* Use base color for messages */
+            color: rgba(200,220,255,.9);
+            border-left: 4px solid #39f; /* Keep the color indicator */
+            box-shadow: inset 2px 2px 5px var(--darker-shade); /* Subtle inset for messages */
+            }
+            .message.success{background-color: var(--theme-secondary); color:rgba(200,255,220,.9);border-left-color:#2c8;}
+            .message.error{background-color: var(--theme-secondary); color:rgba(255,255,200,.9);border-left-color:#f44;} /* Fixed color for error message */
+            .message.warn{background-color: var(--theme-secondary); color:rgba(255,220,180,.9);border-left-color:#fa0;}
             .msg-text{flex-grow:1}
             .no-message-exist{color:rgba(255,255,255,.5);text-align:center;padding:15px 0;font-style:italic}
-            .captcha-image-container{text-align:center;margin-bottom:15px;background-color:#fff;padding:10px;border-radius:var(--border-radius-sm);border:1px solid rgba(255,255,255,.1);min-height:60px;display:flex;justify-content:center;align-items:center}
+            .captcha-image-container{
+                text-align:center;margin-bottom:15px;
+                background-color: var(--lighter-shade); /* Lighter shade for contrast inside inset */
+                padding:10px;border-radius:var(--border-radius-sm);
+                box-shadow: inset 3px 3px 6px var(--darker-shade), inset -3px -3px 6px var(--lighter-shade); /* Inset for captcha image */
+                border: none;
+                min-height:60px;display:flex;justify-content:center;align-items:center
+            }
             .captcha-image-container img,.captcha-image-container svg{max-width:230px;height:auto;display:inline-block}
+
             .sms-input-group{display:flex;gap:10px;align-items:center;margin-bottom:15px}
             .sms-input-group .styled-input{margin-bottom:0;flex-grow:1;
             width: auto;}
@@ -1284,203 +1347,80 @@
             width: auto;}
             .submit-order-btn{margin-top:10px; font-size: 1.1rem;
             padding: 15px;}
-            .settings-section { background-color: rgba(0,0,0,0.2);
+            .settings-section {
+                background-color: var(--theme-secondary); /* Same as base */
+                box-shadow: var(--neumorphic-shadow-in); /* Inset shadow */
             }
             .main-settings-controls { display: flex; gap: 10px;
             }
             .main-settings-controls .action-btn { flex-grow: 1;
             }
-            .settings-panel { background-color: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--border-radius-sm);
-            margin-top: 1rem; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease;
+            .settings-panel {
+                background-color: var(--darker-shade); /* Slightly darker for the panel background */
+                padding: 1rem; border-radius: var(--border-radius-sm);
+                margin-top: 1rem;
+                box-shadow: inset 3px 3px 6px rgba(0,0,0,0.3), inset -3px -3px 6px rgba(255,255,255,0.05); /* Deeper inset */
+                border: none;
             }
-            .settings-panel label { display: block; margin-bottom: 0.5rem;
-            font-size: 0.9rem; color: var(--theme-light-gray); }
+            .settings-panel label { display: block;
+            margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--theme-light-gray); }
             .solver-options-panel { margin-top: 1rem;
-            padding: 1rem; background-color: rgba(0,0,0,0.2); border-radius: var(--border-radius-sm); border: 1px solid rgba(255,255,255,0.1);
+            padding: 1rem;
+            background-color: var(--darker-shade); /* Slightly darker for the panel background */
+            border-radius: var(--border-radius-sm);
+            box-shadow: inset 3px 3px 6px rgba(0,0,0,0.3), inset -3px -3px 6px rgba(255,255,255,0.05); /* Deeper inset */
+            border: none;
             }
             .panel-label { display: block; margin-bottom: 0.75rem; font-size: 0.9rem;
             font-weight: 500; color: var(--theme-light-gray); }
             .settings-options { display: flex;
-            justify-content: space-around; }
+            justify-content: space-around; flex-wrap: wrap; gap: 10px;}
             .settings-options label { display: flex;
             align-items: center; gap: 8px; cursor: pointer; color: var(--theme-light-gray); font-size: 0.9rem;
             }
             .settings-options input[type="radio"] { accent-color: var(--theme-primary);
             }
-            @media(max-width:767px){
-                .captcha-sms-messages-container{flex-direction:column}
-                .popup-header{padding:10px 15px; flex-direction: column; align-items: flex-start; gap: 10px;}
-                .popup-main-content{padding:15px;gap:15px}
-                .popup-section{padding:15px}
-                .section-title{font-size:17px;margin-bottom:12px}
-                .items-grid .item h4{font-size:16px}
-                .items-grid .item p{font-size:13px}
-                .message{font-size:12px}
+            .collapsible-toggle { display: none; /* Hide by default in desktop */
             }
-
             @media (max-width: 991px) {
-                .popup-content-wrapper {
-                    width: calc(100% - 20px) !important;
-                    margin: 10px !important;
-                    max-height: 98vh !important;
-                    overflow-y: auto !important;
+                .popup-content-wrapper { max-width: calc(100% - 20px);
+                max-height: 98vh; margin: 10px; }
+                .popup-header{ flex-direction: column;
+                align-items: flex-start; gap: 10px; padding: 10px 15px; }
+                .popup-header-right { flex-direction: column;
+                align-items: flex-start; width: 100%; gap: 8px; }
+                .popup-title { font-size: 1.1rem;
                 }
-                .popup-header {
-                    flex-direction: column !important;
-                    align-items: flex-start !important;
-                    gap: 10px !important;
-                    padding: 10px 15px !important;
+                .popup-main-content{ padding: 15px;
+                gap: 15px; }
+                .popup-section{ padding: 15px;
                 }
-                .popup-header-right {
-                    flex-direction: column !important;
-                    align-items: flex-start !important;
-                    width: 100% !important;
-                    gap: 8px !important;
+                .search-input-group, .settings-input-group, .sms-input-group { flex-direction: column;
                 }
-                .header-info-item {
-                    font-size: 0.9rem !important;
+                .items-grid .found-product-card { flex-direction: column;
+                align-items: center; text-align: center; }
+                .found-product-image { width: 100%;
+                height: 180px; }
+                .found-product-price { align-self: center;
                 }
-                .popup-title {
-                    font-size: 1.1rem !important;
-                }
-                .popup-main-content {
-                    padding: 15px !important;
-                    gap: 15px !important;
-                }
-                .popup-section {
-                    padding: 15px !important;
-                }
-                .section-title {
-                    font-size: 1rem !important;
-                    margin-bottom: 12px !important;
-                }
-                .search-input-group,
-                .settings-input-group,
-                .sms-input-group {
-                    flex-direction: column !important;
-                    gap: 10px !important;
-                }
-                .action-btn {
-                    width: 100% !important;
-                    padding: 12px 15px !important;
-                    font-size: 0.95rem !important;
-                }
-                .styled-input {
-                    padding: 10px 12px !important;
-                    font-size: 0.95rem !important;
-                }
-                .items-grid .found-product-card {
-                    flex-direction: column !important;
-                    align-items: center !important;
-                    gap: 15px !important;
-                    padding: 1rem !important;
-                    text-align: center !important;
-                }
-                .found-product-image {
-                    width: 100% !important;
-                    height: 180px !important;
-                    border-radius: var(--border-radius-sm) !important;
-                }
-                .found-product-details {
-                    width: 100% !important;
-                    text-align: center !important;
-                }
-                .found-product-title {
-                    font-size: 1.1rem !important;
-                }
-                .found-product-model {
-                    font-size: 0.85rem !important;
-                }
-                .found-product-price {
-                    align-self: center !important;
-                    margin-top: 0.8rem !important;
-                    font-size: 0.95rem !important;
-                    padding: 0.4rem 0.8rem !important;
-                }
-                .captcha-sms-messages-container {
-                    flex-direction: column !important;
-                    gap: 15px !important;
-                }
-                .messages-content {
-                    max-height: 200px !important;
-                }
-                .message {
-                    font-size: 0.8rem !important;
-                    padding: 8px 10px !important;
-                }
-                .captcha-image-container {
-                    min-height: 50px !important;
-                    padding: 8px !important;
-                }
-                .submit-order-btn {
-                    font-size: 1rem !important;
-                    padding: 12px !important;
-                }
-                .settings-options {
-                    flex-direction: column !important;
-                    align-items: flex-start !important;
-                    gap: 8px !important;
-                }
+                /* For mobile, stack captcha and messages vertically */
+                .captcha-sms-messages-container{ flex-direction: column; }
 
-                .collapsible-toggle {
-                    display: flex !important;
-                    width: 100% !important;
-                    justify-content: space-between !important;
-                    align-items: center !important;
-                    background: none !important;
-                    border: none !important;
-                    cursor: pointer !important;
-                    padding: 10px 0 !important;
-                    color: var(--theme-primary) !important;
-                    font-size: 1.1rem !important;
-                    font-weight: 500 !important;
-                    border-bottom: 1px solid rgba(255,255,255,.15) !important;
-                    margin-bottom: 1rem !important;
-                    text-align: right !important;
+                .collapsible-toggle { display: flex; /* Show on mobile */
+                width: 100%; justify-content: space-between; align-items: center; background: none; border: none; cursor: pointer; padding: 10px 0; color: var(--theme-primary); font-size: 1.1rem;
+                font-weight: 500; border-bottom: 1px solid rgba(255,255,255,.15); margin-bottom: 1rem; text-align: right;
                 }
-                .collapsible-toggle .collapse-icon {
-                    display: inline-block !important;
-                    width: 0 !important;
-                    height: 0 !important;
-                    border-left: 5px solid transparent !important;
-                    border-right: 5px solid transparent !important;
-                    border-top: 5px solid var(--theme-primary) !important;
-                    transition: transform 0.3s ease !important;
-                    margin-right: 8px !important;
+                .collapsible-toggle .collapse-icon { display: inline-block;
+                width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid var(--theme-primary); transition: transform 0.3s ease;
+                margin-right: 8px; }
+                .collapsible-toggle.open .collapse-icon { transform: rotate(180deg);
                 }
-                .collapsible-toggle.open .collapse-icon {
-                    transform: rotate(180deg) !important;
-                }
-                .collapsible-content {
-                    display: none;
-                    padding-top: 10px !important;
-                    border-top: none !important;
-                }
-            }
-
-            @media (min-width: 992px) {
-                .collapsible-toggle {
-                    display: none !important;
-                }
-                .collapsible-content {
-                    display: block !important;
-                    padding-top: 0 !important;
-                }
-                .settings-section .section-title {
-                    display: block !important;
-                    margin:0 0 1rem !important;
-                    color:var(--theme-primary) !important;
-                    border-bottom:1px solid rgba(255,255,255,.15) !important;
-                    padding-bottom:10px !important;
-                    font-size:1.1rem !important;
-                    font-weight:500 !important;
-                    cursor: default !important;
+                .collapsible-content { display: none; /* Collapsed by default on mobile */
                 }
             }
         `);
     }
 
-    // --- Script Entry Point ---
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initializeScript);
     } else {
