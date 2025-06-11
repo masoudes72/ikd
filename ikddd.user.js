@@ -37,7 +37,7 @@
         closeIconText: '&times;',
         triggerButtonText: 'فعال‌سازی ربات',
         popupSearchPlaceholder: 'نام دقیق محصول مورد نظر',
-        startContinuousSearchText: 'شروع جستجوی مستمر',
+        startContinuousSearchText: 'شروع جستجو',
         stopContinuousSearchText: 'توقف جستجو',
         manualSmsButtonText: 'کد SMS دستی',
         manualSmsCooldownText: 'صبر کنید: {timeLeft}',
@@ -516,7 +516,7 @@
             <div class="popup-header">
                 <div class="popup-header-left">
                     <img src="${CONFIG.logoImageUrl}" alt="لوگو" class="popup-logo"/>
-                    <h2 class="popup-title">ربات خرید ایران‌خودرو دیزل</h2>
+                    <h2 class="popup-title">خرید ایران‌خودرو دیزل</h2>
 
                 </div>
                 <div class="popup-header-right">
